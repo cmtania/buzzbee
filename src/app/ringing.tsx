@@ -127,14 +127,15 @@ export default function RingingScreen() {
   const clockLabel = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const [clockValue, clockAmpm] = clockLabel.split(' ');
 
-  // The mic-based missions (Clap/Buzz) need a clean signal to count against —
-  // a blaring alarm loop would trigger false positives on their own
-  // threshold detection — so we skip continuous sound for those two rather
-  // than trying to duck volume mid-mission. Also gated on the ambient
+  // A loud alarm has to actually make noise regardless of dismiss method —
+  // including Clap/Buzz, even though that means the alarm loop and the
+  // mission's own mic detection are picking up the same mic input. This is
+  // an untuned trade-off (see PLAN.md's Known Technical Risk section): the
+  // Clap/Buzz thresholds may need retuning against actual alarm audio
+  // rather than a silent room before launch. Only gated on the ambient
   // pre-check finishing first: sampling room noise while our own alarm is
   // already playing would make every room read as "active".
-  const shouldPlaySound =
-    ambientCheckDone && !!alarm && !!effectiveMission && !MIC_MISSIONS.includes(effectiveMission);
+  const shouldPlaySound = ambientCheckDone && !!alarm && !!effectiveMission;
 
   let statusText = 'Deadline reached';
   if (ambientCheckDone && roomActive) {
@@ -162,27 +163,29 @@ export default function RingingScreen() {
         </View>
 
         <View style={styles.missionArea}>
-          {needsAmbientCheck && !ambientCheckDone && (
-            <>
-              <AmbientPreCheck onResult={setRoomActive} />
-              <Text style={styles.hint}>Listening for room noise…</Text>
-            </>
-          )}
-          {ambientCheckDone && effectiveMission && (
-            <View style={styles.eyebrow}>
-              <Text style={styles.eyebrowText}>{MISSION_VERBS[effectiveMission]}</Text>
-            </View>
-          )}
-          {ambientCheckDone && effectiveMission === 'math' && <MathMission onSolved={dismiss} />}
-          {ambientCheckDone && effectiveMission === 'tap' && <TapMission onComplete={dismiss} />}
-          {ambientCheckDone && effectiveMission === 'shake' && <ShakeMission onComplete={dismiss} />}
-          {ambientCheckDone && effectiveMission === 'clap' && <ClapMission onComplete={dismiss} />}
-          {ambientCheckDone && effectiveMission === 'buzz' && <BuzzMission onComplete={dismiss} />}
-          {ambientCheckDone && !effectiveMission && (
-            <Pressable style={styles.fallbackDismiss} onPress={dismiss}>
-              <Text style={styles.fallbackDismissText}>Dismiss</Text>
-            </Pressable>
-          )}
+          <View style={styles.missionBlock}>
+            {needsAmbientCheck && !ambientCheckDone && (
+              <>
+                <AmbientPreCheck onResult={setRoomActive} />
+                <Text style={styles.hint}>Listening for room noise…</Text>
+              </>
+            )}
+            {ambientCheckDone && effectiveMission && (
+              <View style={styles.eyebrow}>
+                <Text style={styles.eyebrowText}>{MISSION_VERBS[effectiveMission]}</Text>
+              </View>
+            )}
+            {ambientCheckDone && effectiveMission === 'math' && <MathMission onSolved={dismiss} />}
+            {ambientCheckDone && effectiveMission === 'tap' && <TapMission onComplete={dismiss} />}
+            {ambientCheckDone && effectiveMission === 'shake' && <ShakeMission onComplete={dismiss} />}
+            {ambientCheckDone && effectiveMission === 'clap' && <ClapMission onComplete={dismiss} />}
+            {ambientCheckDone && effectiveMission === 'buzz' && <BuzzMission onComplete={dismiss} />}
+            {ambientCheckDone && !effectiveMission && (
+              <Pressable style={styles.fallbackDismiss} onPress={dismiss}>
+                <Text style={styles.fallbackDismissText}>Dismiss</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
 
         <Text style={styles.caption}>Snoozing is disabled — finish the mission to dismiss.</Text>
@@ -578,10 +581,11 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     alignItems: 'center',
-    justifyContent: 'space-evenly',
+    justifyContent: 'center',
     paddingHorizontal: Spacing.xxl,
     paddingVertical: Spacing.xl,
   },
+  missionBlock: { width: '100%', alignItems: 'center', gap: 22 },
   centerWrap: { width: '100%', alignItems: 'center', gap: 18 },
   counter: { fontFamily: Fonts.extraBold, fontSize: 76, color: Colors.accentDeep, lineHeight: 80 },
   counterTarget: { fontFamily: Fonts.bold, fontSize: 22, color: Colors.inkFaint },
