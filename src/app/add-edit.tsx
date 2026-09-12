@@ -55,40 +55,6 @@ export default function AddEditScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.body}>
-          {draft.smartWakeEnabled ? (
-            <View>
-              <Text style={styles.sectionLabel}>Wake window</Text>
-              <View style={styles.timeRow}>
-                <TimeStepper
-                  label="Starts"
-                  value={draft.windowStart}
-                  onChange={(v) => setDraft((d) => ({ ...d, windowStart: v }))}
-                />
-                <View style={styles.timeSep}>
-                  <LongArrowRight size={16} color={Colors.inkFaint} />
-                </View>
-                <TimeStepper
-                  label="Hard deadline"
-                  value={draft.windowEnd}
-                  onChange={(v) => setDraft((d) => ({ ...d, windowEnd: v }))}
-                  deadline
-                />
-              </View>
-              <Text style={styles.hint}>
-                BuzzBee rings sometime in this range — never later than the deadline.
-              </Text>
-            </View>
-          ) : (
-            <View>
-              <Text style={styles.sectionLabel}>Alarm time</Text>
-              <TimeStepper
-                label="Rings at"
-                value={draft.windowEnd}
-                onChange={(v) => setDraft((d) => ({ ...d, windowStart: v, windowEnd: v }))}
-              />
-            </View>
-          )}
-
           <View style={styles.rowCard}>
             <View style={styles.smartRow}>
               <Text style={styles.smartLabel}>Smart Wake</Text>
@@ -122,6 +88,40 @@ export default function AddEditScreen() {
               </Text>
             </View>
           </View>
+
+          {draft.smartWakeEnabled ? (
+            <View>
+              <Text style={styles.sectionLabel}>Wake window</Text>
+              <View style={styles.timeRow}>
+                <TimeStepper
+                  label="Starts"
+                  value={draft.windowStart}
+                  onChange={(v) => setDraft((d) => ({ ...d, windowStart: v }))}
+                />
+                <View style={styles.timeSep}>
+                  <LongArrowRight size={16} color={Colors.inkFaint} />
+                </View>
+                <TimeStepper
+                  label="Hard deadline"
+                  value={draft.windowEnd}
+                  onChange={(v) => setDraft((d) => ({ ...d, windowEnd: v }))}
+                  deadline
+                />
+              </View>
+              <Text style={styles.hint}>
+                BuzzBee rings sometime in this range — never later than the deadline.
+              </Text>
+            </View>
+          ) : (
+            <View>
+              <Text style={styles.sectionLabel}>Alarm time</Text>
+              <TimeStepper
+                label="Rings at"
+                value={draft.windowEnd}
+                onChange={(v) => setDraft((d) => ({ ...d, windowStart: v, windowEnd: v }))}
+              />
+            </View>
+          )}
 
           <View>
             <Text style={styles.sectionLabel}>Repeat</Text>

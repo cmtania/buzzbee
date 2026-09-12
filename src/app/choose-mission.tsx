@@ -67,7 +67,7 @@ export default function ChooseMissionScreen() {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(43,36,32,0.35)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: Colors.bg,
     borderTopLeftRadius: Radii.xl,

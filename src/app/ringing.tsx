@@ -68,10 +68,12 @@ export default function RingingScreen() {
   const startedAt = useRef(Date.now());
   const [now, setNow] = useState(new Date());
 
-  // 'ringing' = alarm sound playing, showing a Start Mission button.
-  // 'mission' = sound paused, the actual mission UI is live. missionAttempt
-  // increments each time a mission (re)starts so its component remounts
-  // with fresh state (progress reset) even across repeated timeouts.
+  // For Clap/Buzz (see needsMissionGate below): 'ringing' = sound playing,
+  // showing a Start Mission button; 'mission' = sound paused, mission UI
+  // live. For every other mission, phase flips to 'mission' immediately
+  // and sound just keeps playing throughout — no gate needed since there's
+  // no mic conflict. missionAttempt increments each (re)start so the
+  // mission component remounts with fresh state, including after timeouts.
   const [phase, setPhase] = useState<'ringing' | 'mission'>('ringing');
   const [missionAttempt, setMissionAttempt] = useState(0);
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -111,6 +113,20 @@ export default function RingingScreen() {
     !!effectiveMission &&
     !MIC_MISSIONS.includes(effectiveMission);
   const ambientCheckDone = dataReady && (!needsAmbientCheck || roomActive !== null);
+
+  // Only Clap/Buzz need the explicit Start Mission gate — they're the only
+  // missions that conflict with the alarm sound (their own mic detection
+  // would pick it up). Math/Tap/Shake have no such conflict, so they skip
+  // straight into the mission with the alarm still ringing the whole time.
+  const needsMissionGate = !!effectiveMission && MIC_MISSIONS.includes(effectiveMission);
+  const autoStarted = useRef(false);
+
+  useEffect(() => {
+    if (!ambientCheckDone || !effectiveMission || needsMissionGate || autoStarted.current) return;
+    autoStarted.current = true;
+    startMission();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ambientCheckDone, effectiveMission, needsMissionGate]);
 
   useEffect(() => {
     if (!ambientCheckDone) return;
@@ -169,11 +185,13 @@ export default function RingingScreen() {
   const clockLabel = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const [clockValue, clockAmpm] = clockLabel.split(' ');
 
-  // Sound plays while ringing (before the mission is started, and again if
-  // it times out from inactivity) and pauses once a mission is actively
-  // being attempted — this keeps Clap/Buzz's mic detection clean without
-  // ever leaving the alarm silent for the person to sleep through.
-  const shouldPlaySound = ambientCheckDone && !!alarm && !!effectiveMission && phase === 'ringing';
+  // Sound plays continuously for Math/Tap/Shake (no mic conflict). For
+  // Clap/Buzz it plays only while ringing (before the mission is started,
+  // and again if it times out from inactivity) and pauses once that
+  // mission is actively being attempted, keeping their mic detection clean
+  // without ever leaving the alarm silent for the person to sleep through.
+  const shouldPlaySound =
+    ambientCheckDone && !!alarm && !!effectiveMission && (!needsMissionGate || phase === 'ringing');
 
   let statusText = 'Deadline reached';
   if (ambientCheckDone && roomActive) {
@@ -213,7 +231,7 @@ export default function RingingScreen() {
                 <Text style={styles.eyebrowText}>{MISSION_VERBS[effectiveMission]}</Text>
               </View>
             )}
-            {ambientCheckDone && effectiveMission && phase === 'ringing' && (
+            {ambientCheckDone && effectiveMission && needsMissionGate && phase === 'ringing' && (
               <Pressable style={styles.startBtn} onPress={startMission}>
                 <Text style={styles.startBtnText}>Start Mission</Text>
               </Pressable>

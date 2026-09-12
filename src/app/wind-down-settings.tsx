@@ -41,11 +41,13 @@ export default function WindDownSettingsScreen() {
         </View>
 
         <View style={styles.body}>
-          <TimeStepper
-            label="Bedtime"
-            value={settings.bedtime ?? '22:30'}
-            onChange={(v) => patch({ bedtime: v })}
-          />
+          <View style={styles.timeRow}>
+            <TimeStepper
+              label="Bedtime"
+              value={settings.bedtime ?? '22:30'}
+              onChange={(v) => patch({ bedtime: v })}
+            />
+          </View>
 
           <View>
             <Text style={styles.sectionLabel}>Remind me before bedtime</Text>
@@ -90,6 +92,7 @@ const styles = StyleSheet.create({
   },
   title: { fontFamily: Fonts.extraBold, fontSize: 17, color: Colors.ink },
   body: { padding: Spacing.xl, gap: Spacing.xl },
+  timeRow: { flexDirection: 'row' },
   sectionLabel: {
     fontFamily: Fonts.bold,
     fontSize: 12.5,
