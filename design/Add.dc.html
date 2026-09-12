@@ -1,0 +1,167 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .screen {
+    width: 375px; height: 812px; position: relative; overflow: hidden;
+    background: var(--bg);
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--ink);
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: color-mix(in oklch, var(--accent) 80%, black); }
+
+  .topbar { padding: 60px 20px 8px; text-align: center; }
+  .title { font-size: 17px; font-weight: 800; }
+
+  .body { padding: 10px 20px 24px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; height: calc(812px - 88px - 98px); }
+
+  .section-label { font-size: 13px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+
+  .time-row { display: flex; align-items: center; gap: 10px; }
+  .time-box { flex: 1; background: var(--card-bg); border-radius: 20px; padding: 14px 16px; box-shadow: 0 1px 2px rgba(43,36,32,0.05), 0 8px 20px rgba(43,36,32,0.06); }
+  .time-box.deadline { background: var(--accent-soft); }
+  .time-label { font-size: 12px; font-weight: 700; color: var(--ink-faint); }
+  .time-value { font-size: 24px; font-weight: 800; margin-top: 4px; letter-spacing: -0.01em; }
+  .time-value .ampm { font-size: 13px; font-weight: 700; color: var(--ink-faint); }
+  .time-sep { color: var(--ink-faint); flex-shrink: 0; }
+  .time-sep svg { width: 16px; height: 16px; }
+  .hint { font-size: 12.5px; color: var(--ink-faint); margin-top: 10px; line-height: 1.5; }
+
+  .row-card { background: var(--card-bg); border-radius: 18px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(43,36,32,0.05), 0 8px 20px rgba(43,36,32,0.06); }
+  .smart-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .smart-label { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
+  .smart-label svg { width: 28px; height: 28px; flex-shrink: 0; }
+  .smart-explainer { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--track-off); }
+  .smart-explainer p { margin: 0; font-size: 12px; color: var(--ink-soft); line-height: 1.4; font-weight: 600; }
+  .buzz-tag { font-size: 11px; font-weight: 800; color: color-mix(in oklch, var(--accent) 65%, black); text-transform: uppercase; letter-spacing: 0.04em; display: block; margin-bottom: 2px; }
+
+  .toggle { width: 48px; height: 28px; border-radius: 100px; padding: 3px; flex-shrink: 0; }
+  .toggle.on { background: var(--accent); }
+  .toggle.off { background: var(--track-off); }
+  .knob { width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+  .toggle.on .knob { transform: translateX(20px); }
+
+  .days { display: flex; gap: 8px; justify-content: space-between; }
+  .day {
+    width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: var(--ink-faint); border: 1.5px solid var(--track-off);
+  }
+  .day.active { background: var(--accent); border-color: var(--accent); color: #2B2420; }
+
+  .mission-row { display: flex; align-items: center; gap: 12px; }
+  .mission-row-icon { width: 40px; height: 40px; border-radius: 12px; background: var(--accent-soft); color: color-mix(in oklch, var(--accent) 60%, black); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .mission-row-icon svg { width: 20px; height: 20px; }
+  .mission-row-main { flex: 1; min-width: 0; }
+  .mission-row-sub { font-size: 12px; font-weight: 600; color: var(--ink-faint); margin-top: 2px; }
+
+  .sound-row { display: flex; align-items: center; justify-content: space-between; }
+  .sound-row .left { font-size: 16px; font-weight: 700; }
+  .sound-row .right { display: flex; align-items: center; gap: 8px; color: var(--ink-faint); font-size: 14.5px; font-weight: 600; }
+  .sound-row svg { width: 15px; height: 15px; }
+
+  .footer { position: absolute; left: 0; right: 0; bottom: 0; padding: 16px 20px 30px; background: linear-gradient(to top, var(--bg) 65%, transparent); display: flex; gap: 12px; }
+  .footer button { flex: 1; height: 52px; border-radius: 18px; border: none; font-family: inherit; font-size: 15.5px; font-weight: 800; cursor: pointer; }
+  .cancel-btn { background: var(--track-off); color: var(--ink); }
+  .save-btn { background: var(--accent); color: #2B2420; box-shadow: 0 10px 24px color-mix(in oklch, var(--accent) 40%, transparent); }
+</style>
+</helmet>
+
+<div class="screen" style="--bg: #FBF3E4; --ink: #2B2420; --ink-soft: #6B5D4F; --ink-faint: #9C8C7A; --card-bg: #FFFDF7; --track-off: #EDE2CE; --accent: {{accent}}; --accent-soft: color-mix(in oklch, var(--accent) 20%, white);">
+
+  <div class="topbar">
+    <div class="title">Edit Alarm</div>
+  </div>
+
+  <div class="body">
+
+    <div>
+      <div class="section-label">Wake window</div>
+      <div class="time-row">
+        <div class="time-box">
+          <div class="time-label">Starts</div>
+          <div class="time-value">6:30 <span class="ampm">AM</span></div>
+        </div>
+        <div class="time-sep">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </div>
+        <div class="time-box deadline">
+          <div class="time-label">Hard deadline</div>
+          <div class="time-value">7:00 <span class="ampm">AM</span></div>
+        </div>
+      </div>
+      <div class="hint">BuzzBee rings sometime in this range &mdash; never later than the deadline.</div>
+    </div>
+
+    <div class="row-card">
+      <div class="smart-row">
+        <div class="smart-label">
+                    Smart Wake
+        </div>
+        <div class="toggle on"><div class="knob"></div></div>
+      </div>
+      <div class="smart-explainer">
+        <p><span class="buzz-tag">Buzz says</span>I'll ring the moment you're in light sleep &mdash; never later than your deadline!</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Repeat</div>
+      <div class="days">
+        <span class="day active">M</span>
+        <span class="day active">T</span>
+        <span class="day active">W</span>
+        <span class="day active">T</span>
+        <span class="day active">F</span>
+        <span class="day">S</span>
+        <span class="day">S</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Choose a Mission</div>
+      <div class="row-card mission-row">
+        <div class="mission-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M4 9l-1.5 1.5M20 9l1.5 1.5" stroke-linecap="round"/></svg></div>
+        <div class="mission-row-main">
+          <div class="left">Shake Phone</div>
+          <div class="mission-row-sub">Shake &times;50 to dismiss</div>
+        </div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;color:var(--ink-faint);flex-shrink:0;"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+    </div>
+
+    <div class="row-card sound-row">
+      <div class="left">Sound</div>
+      <div class="right">
+        Honey Chime
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <button class="cancel-btn">Cancel</button>
+    <button class="save-btn">Save Alarm</button>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#F5A623","options":["#F5A623","#E8940F","#D98A1F","#C77B14"]}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#F5A623' };
+  }
+}
+</script>
+</body>
+</html>

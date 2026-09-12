@@ -1,0 +1,152 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .screen {
+    width: 375px; height: 812px; position: relative; overflow: hidden;
+    background: var(--bg);
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--ink);
+  }
+
+  .header { padding: 58px 24px 4px; }
+  h1 { font-size: 26px; font-weight: 800; margin: 0; letter-spacing: -0.01em; }
+
+  .body { padding: 18px 24px 24px; display: flex; flex-direction: column; gap: 22px; height: calc(812px - 92px - 108px); overflow-y: auto; }
+
+  .section-label { font-size: 12px; font-weight: 800; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; padding-left: 4px; }
+  .group { background: var(--card-bg); border-radius: 18px; overflow: hidden; box-shadow: 0 1px 2px rgba(43,36,32,0.05), 0 8px 20px rgba(43,36,32,0.06); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+  .row + .row { border-top: 1px solid var(--track-off); }
+  .row-icon { width: 30px; height: 30px; border-radius: 9px; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .row-icon svg { width: 16px; height: 16px; color: color-mix(in oklch, var(--accent) 60%, black); }
+  .row-main { flex: 1; min-width: 0; }
+  .row-title { font-size: 14.5px; font-weight: 700; }
+  .row-sub { font-size: 12px; color: var(--ink-faint); margin-top: 1px; font-weight: 600; }
+  .chevron { width: 14px; height: 14px; color: var(--ink-faint); flex-shrink: 0; }
+
+  .toggle { width: 44px; height: 26px; border-radius: 100px; padding: 3px; flex-shrink: 0; }
+  .toggle.on { background: var(--accent); }
+  .toggle.off { background: var(--track-off); }
+  .knob { width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+  .toggle.on .knob { transform: translateX(18px); }
+
+  .tabbar {
+    position: absolute; left: 20px; right: 20px; bottom: 26px; height: 64px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .tabs-pill {
+    flex: 1; height: 100%; background: var(--card-bg); border-radius: 22px;
+    display: flex; align-items: center; justify-content: space-around;
+    box-shadow: 0 10px 26px rgba(43,36,32,0.16), 0 2px 6px rgba(43,36,32,0.08);
+  }
+  .tab { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .tab svg { width: 20px; height: 20px; }
+  .tab span { font-size: 10px; font-weight: 700; }
+  .tab.active svg, .tab.active span { color: var(--ink); }
+  .tab:not(.active) svg, .tab:not(.active) span { color: var(--ink-faint); }
+  .add-btn {
+    width: 64px; height: 64px; flex-shrink: 0; border-radius: 22px;
+    background: #FBC873; border: 4px solid #E8790A;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 10px 22px rgba(232,121,10,0.35);
+  }
+  .add-btn svg { width: 26px; height: 26px; }
+</style>
+</helmet>
+
+<div class="screen" style="--bg: #FBF3E4; --ink: #2B2420; --ink-faint: #9C8C7A; --card-bg: #FFFDF7; --track-off: #EDE2CE; --accent: {{accent}}; --accent-soft: color-mix(in oklch, var(--accent) 20%, white);">
+
+  <div class="header"><h1>Settings</h1></div>
+
+  <div class="body">
+
+    <div>
+      <div class="section-label">Smart Features</div>
+      <div class="group">
+        <div class="row">
+          <div class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></div>
+          <div class="row-main"><div class="row-title">Wind-Down Mode</div><div class="row-sub">Reminder 30 min before bed</div></div>
+          <div class="toggle on"><div class="knob"></div></div>
+        </div>
+        <div class="row">
+          <div class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M4 10h16M8 3v4M16 3v4"/></svg></div>
+          <div class="row-main"><div class="row-title">Calendar Auto-Shift</div><div class="row-sub">Checks tomorrow's first event</div></div>
+          <div class="toggle on"><div class="knob"></div></div>
+        </div>
+        <div class="row">
+          <div class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 0-4 4v6a4 4 0 0 0 8 0V6a4 4 0 0 0-4-4z"/><path d="M6 11v1a6 6 0 0 0 12 0v-1M12 19v3"/></svg></div>
+          <div class="row-main"><div class="row-title">Ambient Awareness</div><div class="row-sub">On-device only, never recorded</div></div>
+          <div class="toggle off"><div class="knob"></div></div>
+        </div>
+        <div class="row">
+          <div class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M10 2h4M12 2v2"/></svg></div>
+          <div class="row-main"><div class="row-title">Test Smart Wake</div><div class="row-sub">See it detect light sleep in under a minute</div></div>
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">General</div>
+      <div class="group">
+        <div class="row">
+          <div class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+          <div class="row-main"><div class="row-title">Notifications</div></div>
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+        <div class="row">
+          <div class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M16 8a5 5 0 0 1 0 8"/></svg></div>
+          <div class="row-main"><div class="row-title">Sound &amp; Haptics</div></div>
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+        <div class="row">
+          <div class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/></svg></div>
+          <div class="row-main"><div class="row-title">About BuzzBee</div></div>
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="tabbar">
+    <div class="tabs-pill">
+      <div class="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg>
+        <span>Home</span>
+      </div>
+      <div class="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></svg>
+        <span>History</span>
+      </div>
+      <div class="tab active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.1l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.9-1.1L14 3h-4l-.6 2.8a7 7 0 0 0-1.9 1.1l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .7.1 1.1l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.9 1.1L10 21h4l.6-2.8a7 7 0 0 0 1.9-1.1l2.4 1 2-3.4-2-1.6c.1-.4.1-.7.1-1.1z"/></svg>
+        <span>Settings</span>
+      </div>
+    </div>
+    <button class="add-btn" aria-label="Add alarm">
+      <svg viewBox="0 0 24 24"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" fill="#fff" stroke="#E8790A" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#F5A623","options":["#F5A623","#E8940F","#D98A1F","#C77B14"]}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#F5A623' };
+  }
+}
+</script>
+</body>
+</html>

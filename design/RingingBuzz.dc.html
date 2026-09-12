@@ -1,0 +1,133 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .screen {
+    width: 375px; height: 812px; position: relative; overflow: hidden;
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f0f0f0;
+    color: #2B2420;
+  }
+  a { color: #2B2420; }
+
+  .blob-bg { position: absolute; inset: 0; pointer-events: none; }
+  .blob-bg svg { width: 100%; height: 100%; display: block; }
+
+  .top { position: relative; padding: 52px 24px 0; text-align: center; }
+  .clock { font-size: 88px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; color: #fff; }
+  .clock .ampm { font-size: 26px; font-weight: 700; color: #fff; opacity: 0.85; margin-left: 6px; }
+  .status {
+    margin: 18px auto 0; display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11.5px; font-weight: 800; color: color-mix(in oklch, var(--accent) 62%, black);
+    background: #fff;
+    padding: 7px 13px; border-radius: 100px;
+    box-shadow: 0 1px 2px rgba(43,36,32,0.06), 0 8px 18px rgba(43,36,32,0.12);
+  }
+  .status svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  .mission {
+    position: absolute; width: 303px; height: 546px; top: 196px; left: 36px;
+    padding: 26px 22px 22px; text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-evenly;
+  }
+  .pill-eyebrow {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--accentsoft); color: color-mix(in oklch, var(--accent) 62%, black);
+    font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 10px 20px; border-radius: 100px;
+  }
+  .counter { font-size: 96px; font-weight: 800; letter-spacing: -0.03em; line-height: 0.9; color: var(--accent); }
+  .counter .total { font-size: 26px; font-weight: 700; color: #9C8C7A; margin-left: 4px; }
+  .progress { width: 100%; height: 16px; background: #F1E7D3; border-radius: 100px; overflow: hidden; }
+  .progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), color-mix(in oklch, var(--accent) 55%, white)); border-radius: 100px; box-shadow: 0 0 14px color-mix(in oklch, var(--accent) 60%, transparent); }
+  .art { display: block; }
+  .hint { font-size: 22px; font-weight: 800; color: #2B2420; line-height: 1.3; }
+
+  .equation { font-size: 44px; font-weight: 800; letter-spacing: -0.01em; color: #2B2420; }
+  .answers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; width: 100%; }
+  .answer { height: 62px; border-radius: 18px; background: #F8EFDC; border: 2px solid #F1E1BE; display: flex; align-items: center; justify-content: center; font-size: 23px; font-weight: 800; color: #2B2420; }
+
+  .input-display { width: 100%; height: 52px; border-radius: 16px; background: #F8EFDC; border: 2px solid #F1E1BE; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; color: #2B2420; letter-spacing: 0.08em; }
+  .input-display .placeholder { color: #C9B98F; }
+  .keypad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; }
+  .key { height: 46px; border-radius: 13px; background: #F8EFDC; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; color: #2B2420; }
+  .key.ghost { visibility: hidden; }
+  .key.action { background: var(--accentsoft); color: color-mix(in oklch, var(--accent) 62%, black); }
+  .key.action svg { width: 18px; height: 18px; }
+
+  .bars { display: flex; align-items: flex-end; justify-content: center; gap: 10px; height: 100px; }
+  .bars span { width: 15px; border-radius: 100px; background: linear-gradient(180deg, color-mix(in oklch, var(--accent) 55%, white), var(--accent)); box-shadow: 0 4px 10px color-mix(in oklch, var(--accent) 40%, transparent); }
+  .bars span.dim { background: #F1E7D3; box-shadow: none; }
+
+  .tap-target { position: relative; width: 150px; height: 150px; display: flex; align-items: center; justify-content: center; }
+  .ring { position: absolute; border-radius: 50%; border: 3px solid var(--accent); }
+  .ring.r1 { width: 114px; height: 114px; opacity: 0.5; }
+  .ring.r2 { width: 150px; height: 150px; opacity: 0.25; }
+  .core {
+    width: 88px; height: 88px; border-radius: 50%;
+    background: linear-gradient(155deg, color-mix(in oklch, var(--accent) 55%, white), var(--accent));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 12px 24px rgba(232,121,10,0.4);
+  }
+  .core .dot { width: 25px; height: 25px; border-radius: 50%; background: #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15); }
+
+  .caption { position: absolute; left: 0; right: 0; bottom: 34px; text-align: center; font-size: 12px; font-weight: 700; opacity: 0.85; padding: 0 40px; }
+</style>
+</helmet>
+
+<div class="screen" style="--accent: {{accent}}; --accentsoft: color-mix(in oklch, var(--accent) 20%, white);">
+
+  <div class="blob-bg">
+    <svg viewBox="0 0 540 960" preserveAspectRatio="none">
+      <rect x="0" y="0" width="540" height="960" fill="#F2F3F4"></rect>
+      <path d="M0 234L11.3 232.5C22.7 231 45.3 228 67.8 231.2C90.3 234.3 112.7 243.7 135.2 232.7C157.7 221.7 180.3 190.3 202.8 197C225.3 203.7 247.7 248.3 270.2 256C292.7 263.7 315.3 234.3 337.8 214C360.3 193.7 382.7 182.3 405.2 194.2C427.7 206 450.3 241 472.8 257.5C495.3 274 517.7 272 528.8 271L540 270L540 0L528.8 0C517.7 0 495.3 0 472.8 0C450.3 0 427.7 0 405.2 0C382.7 0 360.3 0 337.8 0C315.3 0 292.7 0 270.2 0C247.7 0 225.3 0 202.8 0C180.3 0 157.7 0 135.2 0C112.7 0 90.3 0 67.8 0C45.3 0 22.7 0 11.3 0L0 0Z" fill="var(--accent)" stroke-linecap="round" stroke-linejoin="miter"></path>
+    </svg>
+  </div>
+
+  <div class="top">
+    <div class="clock">6:46<span class="ampm">AM</span></div>
+    <div class="status">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5-4 3.5-4 5 0s3.5 4 5 0 3.5-4 5 0 3.5 4 5 0"/></svg>
+      Light sleep detected &middot; 14 min ahead
+    </div>
+  </div>
+
+  <div class="mission">
+    <div class="pill-eyebrow">Buzz to dismiss</div>
+    <div class="counter">4<span class="total">/10</span></div>
+    <div class="progress"><i style="width:40%"></i></div>
+    <svg class="art" width="260" height="96" viewBox="0 0 260 96" fill="none">
+      <defs>
+        <linearGradient id="buzzGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#E8940F"/>
+          <stop offset="100%" stop-color="#F6D488"/>
+        </linearGradient>
+      </defs>
+      <path d="M8 48 C16 16 26 16 34 48 C42 78 52 78 60 48 C68 8 78 8 86 48 C94 86 104 86 112 48 C120 12 130 12 138 48 C146 82 156 82 164 48 C172 20 182 20 190 48 C198 74 208 74 216 48 C224 28 234 28 242 48 C248 60 253 60 258 48"
+        stroke="url(#buzzGrad)" stroke-width="6" stroke-linecap="round"/>
+    </svg>
+    <div class="hint">Make a long &ldquo;bzzzzz&rdquo; &mdash; 6 to go!</div>
+  </div>
+
+  <div class="caption">Snoozing is disabled &mdash; finish the mission to dismiss.</div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#E8940F","options":["#E8940F","#F5A623","#D98A1F","#C77B14"]}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#E8940F' };
+  }
+}
+</script>
+</body>
+</html>

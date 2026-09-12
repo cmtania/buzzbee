@@ -1,0 +1,23 @@
+{
+  "artboards": [
+    { "file": "Login.dc.html", "x": -455, "y": 0, "w": 375, "h": 812, "title": "Login" },
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 375, "h": 812, "title": "Home" },
+    { "file": "History.dc.html", "x": 455, "y": 0, "w": 375, "h": 812, "title": "Wake History" },
+    { "file": "Settings.dc.html", "x": 910, "y": 0, "w": 375, "h": 812, "title": "Settings" },
+    { "file": "Add.dc.html", "x": 1365, "y": 0, "w": 375, "h": 812, "title": "Add / Edit Alarm" },
+    { "file": "ChooseMission.dc.html", "x": 1820, "y": 0, "w": 375, "h": 812, "title": "Choose Mission" },
+    { "file": "Ringing.dc.html", "x": 0, "y": 940, "w": 375, "h": 812, "title": "Ringing - Math" },
+    { "file": "RingingClap.dc.html", "x": 455, "y": 940, "w": 375, "h": 812, "title": "Ringing - Clap" },
+    { "file": "RingingShake.dc.html", "x": 910, "y": 940, "w": 375, "h": 812, "title": "Ringing - Shake" },
+    { "file": "RingingBuzz.dc.html", "x": 1365, "y": 940, "w": 375, "h": 812, "title": "Ringing - Buzzzzz" },
+    { "file": "RingingTap.dc.html", "x": 1820, "y": 940, "w": 375, "h": 812, "title": "Ringing - Tap" },
+    { "file": "OnboardHabit.dc.html", "x": -455, "y": 1880, "w": 375, "h": 812, "title": "Onboarding 1 - Habit Check" },
+    { "file": "OnboardScience.dc.html", "x": 0, "y": 1880, "w": 375, "h": 812, "title": "Onboarding 2 - Science Hook" },
+    { "file": "OnboardWindow.dc.html", "x": 455, "y": 1880, "w": 375, "h": 812, "title": "Onboarding 3 - Wake Window" },
+    { "file": "OnboardRepeat.dc.html", "x": 910, "y": 1880, "w": 375, "h": 812, "title": "Onboarding 4 - Repeat Days" },
+    { "file": "OnboardPermissions.dc.html", "x": 1365, "y": 1880, "w": 375, "h": 812, "title": "Onboarding 5 - Permissions" },
+    { "file": "OnboardMission.dc.html", "x": 1820, "y": 1880, "w": 375, "h": 812, "title": "Onboarding 6 - Choose Mission" },
+    { "file": "OnboardRingerCheck.dc.html", "x": 2275, "y": 1880, "w": 375, "h": 812, "title": "Onboarding 7 - Ringer Check" }
+  ],
+  "launch": { "view": "canvas" }
+}

@@ -1,0 +1,153 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .sheet-backdrop {
+    width: 375px; height: 812px; background: #1C1B19;
+  }
+  .screen {
+    width: 375px; height: 800px; position: absolute; bottom: 0; overflow: hidden;
+    border-radius: 32px 32px 0 0;
+    background: var(--bg);
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--ink);
+  }
+
+  .topbar { position: relative; display: flex; align-items: center; justify-content: center; padding: 58px 20px 14px; }
+  .close-btn {
+    position: absolute; left: 20px; width: 36px; height: 36px; border-radius: 50%;
+    background: var(--card-bg); box-shadow: 0 1px 2px rgba(43,36,32,0.06), 0 6px 14px rgba(43,36,32,0.1);
+    display: flex; align-items: center; justify-content: center; border: none;
+  }
+  .close-btn svg { width: 15px; height: 15px; color: var(--ink-soft); }
+  .title { font-size: 17px; font-weight: 800; }
+  .subtitle { text-align: center; font-size: 12.5px; font-weight: 700; color: var(--ink-faint); padding: 0 20px 14px; margin-top: -6px; }
+
+  .grid { padding: 4px 20px 28px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; overflow-y: auto; height: calc(800px - 128px); }
+
+  .card {
+    position: relative; background: var(--card-bg); border-radius: 20px; padding: 18px 14px 16px;
+    box-shadow: 0 1px 2px rgba(43,36,32,0.05), 0 8px 20px rgba(43,36,32,0.06);
+    border: 2px solid transparent;
+    display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;
+  }
+  .card.selected { border-color: var(--accent); background: var(--accent-soft); }
+  .check {
+    position: absolute; top: 12px; right: 12px; width: 22px; height: 22px; border-radius: 50%;
+    background: #4CAF6E; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(76,175,110,0.4);
+  }
+  .check svg { width: 12px; height: 12px; color: #fff; }
+
+  .icon-circle {
+    width: 48px; height: 48px; border-radius: 14px; background: var(--accent-soft);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card.selected .icon-circle { background: #fff; }
+  .icon-circle svg { width: 24px; height: 24px; color: color-mix(in oklch, var(--accent) 60%, black); }
+
+  .card-title { font-size: 14.5px; font-weight: 800; }
+  .card-desc { font-size: 11.5px; font-weight: 600; color: var(--ink-soft); line-height: 1.35; min-height: 30px; }
+  .count-pill {
+    font-size: 15px; font-weight: 800; color: color-mix(in oklch, var(--accent) 60%, black);
+    background: var(--accent-soft); padding: 6px 16px; border-radius: 100px; margin-top: 2px;
+  }
+  .card.selected .count-pill { background: #fff; }
+</style>
+</helmet>
+
+<div class="sheet-backdrop">
+<div class="screen" style="--bg: #FBF3E4; --ink: #2B2420; --ink-soft: #6B5D4F; --ink-faint: #9C8C7A; --card-bg: #FFFDF7; --track-off: #EDE2CE; --accent: {{accent}}; --accent-soft: color-mix(in oklch, var(--accent) 18%, white);">
+
+  <div class="topbar">
+    <button class="close-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <div class="title">Choose Mission</div>
+  </div>
+  <div class="subtitle">Pick one dismiss method for this alarm</div>
+
+  <div class="grid">
+
+    <div class="card">
+      <div class="icon-circle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9.5" r="1"/><circle cx="15" cy="9.5" r="1"/><circle cx="9" cy="14.5" r="1"/><circle cx="15" cy="14.5" r="1"/></svg>
+      </div>
+      <div class="card-title">Math</div>
+      <div class="card-desc">Solve one equation to wake up</div>
+      <div class="count-pill">1 problem</div>
+    </div>
+
+    <div class="card">
+      <div class="icon-circle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>
+      </div>
+      <div class="card-title">Clap</div>
+      <div class="card-desc">Clap your hands to dismiss</div>
+      <div class="count-pill">&times;50</div>
+    </div>
+
+    <div class="card selected">
+      <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+      <div class="icon-circle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M4 9l-1.5 1.5M20 9l1.5 1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="card-title">Shake Phone</div>
+      <div class="card-desc">Shake your phone to dismiss</div>
+      <div class="count-pill">&times;50</div>
+    </div>
+
+    <div class="card">
+      <div class="icon-circle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l2-6 4 12 2-8 2 4h4" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="card-title">Buzzzzz</div>
+      <div class="card-desc">Make a long buzzing sound</div>
+      <div class="count-pill">&times;10</div>
+    </div>
+
+    <div class="card">
+      <div class="icon-circle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7" opacity="0.5"/><circle cx="12" cy="12" r="10.5" opacity="0.25"/></svg>
+      </div>
+      <div class="card-title">Tap</div>
+      <div class="card-desc">Tap the screen to dismiss</div>
+      <div class="count-pill">&times;100</div>
+    </div>
+
+    <div class="card">
+      <div class="icon-circle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 17h3l9-11h4"/>
+          <path d="M4 7h3l2.5 3"/>
+          <path d="M14.5 14l2.5 3h3"/>
+          <path d="M17 3l3 3-3 3"/>
+          <path d="M17 15l3 3-3 3"/>
+        </svg>
+      </div>
+      <div class="card-title">Random</div>
+      <div class="card-desc">Surprise mission each morning</div>
+      <div class="count-pill">Mixes it up</div>
+    </div>
+
+  </div>
+
+</div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#F5A623","options":["#F5A623","#E8940F","#D98A1F","#C77B14"]}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#F5A623' };
+  }
+}
+</script>
+</body>
+</html>

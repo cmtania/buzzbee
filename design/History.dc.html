@@ -1,0 +1,170 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .screen {
+    width: 375px; height: 812px; position: relative; overflow: hidden;
+    background: var(--bg);
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--ink);
+  }
+  a { color: var(--accent); text-decoration: none; }
+
+  .header { padding: 58px 24px 4px; }
+  .eyebrow { font-size: 13px; font-weight: 600; color: var(--ink-faint); letter-spacing: 0.02em; }
+  h1 { font-size: 26px; font-weight: 800; margin: 2px 0 0; letter-spacing: -0.01em; }
+
+  .body { padding: 18px 24px 24px; display: flex; flex-direction: column; gap: 20px; height: calc(812px - 92px - 108px); overflow-y: auto; }
+
+  .insight {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--accent-soft); border-radius: 20px; padding: 14px 16px;
+  }
+  .insight svg.buzz { width: 44px; height: 44px; flex-shrink: 0; }
+  .insight p { margin: 0; font-size: 13.5px; font-weight: 700; line-height: 1.4; color: var(--ink); }
+  .insight .tag { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: color-mix(in oklch, var(--accent) 60%, black); margin-bottom: 2px; }
+
+  .chart-card { background: var(--card-bg); border-radius: 22px; padding: 20px 18px 18px; box-shadow: 0 1px 2px rgba(43,36,32,0.05), 0 10px 24px rgba(43,36,32,0.07); }
+  .chart-title { font-size: 13px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+
+  .axis-caps { display: flex; justify-content: space-between; width: 200px; margin: 14px 0 10px 44px; font-size: 10.5px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .chart-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+  .day-label { width: 34px; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); flex-shrink: 0; }
+  .track { position: relative; width: 200px; height: 6px; background: var(--track-off); border-radius: 100px; flex-shrink: 0; }
+  .dot { position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%; transform: translateY(-50%); box-shadow: 0 0 0 3px var(--card-bg); }
+  .dot.accent { background: var(--accent); }
+  .dot.gray { background: var(--ink-faint); }
+  .value { font-size: 12px; font-weight: 700; color: var(--ink-faint); flex: 1; text-align: right; }
+
+  .legend { display: flex; gap: 18px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--track-off); }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; }
+  .legend-dot.accent { background: var(--accent); }
+  .legend-dot.gray { background: var(--ink-faint); }
+
+  .tabbar {
+    position: absolute; left: 20px; right: 20px; bottom: 26px; height: 64px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .tabs-pill {
+    flex: 1; height: 100%; background: var(--card-bg); border-radius: 22px;
+    display: flex; align-items: center; justify-content: space-around;
+    box-shadow: 0 10px 26px rgba(43,36,32,0.16), 0 2px 6px rgba(43,36,32,0.08);
+  }
+  .tab { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .tab svg { width: 20px; height: 20px; }
+  .tab span { font-size: 10px; font-weight: 700; }
+  .tab.active svg, .tab.active span { color: var(--ink); }
+  .tab:not(.active) svg, .tab:not(.active) span { color: var(--ink-faint); }
+  .add-btn {
+    width: 64px; height: 64px; flex-shrink: 0; border-radius: 22px;
+    background: #FBC873; border: 4px solid #E8790A;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 10px 22px rgba(232,121,10,0.35);
+  }
+  .add-btn svg { width: 26px; height: 26px; }
+</style>
+</helmet>
+
+<div class="screen" style="--bg: #FBF3E4; --ink: #2B2420; --ink-soft: #6B5D4F; --ink-faint: #9C8C7A; --card-bg: #FFFDF7; --track-off: #EDE2CE; --accent: {{accent}}; --accent-soft: color-mix(in oklch, var(--accent) 20%, white);">
+
+  <div class="header">
+    <div class="eyebrow">Last 7 days</div>
+    <h1>Wake History</h1>
+  </div>
+
+  <div class="body">
+
+    <div class="insight">
+      <p><span class="tag">Buzz says</span>You beat your deadline by 12 minutes this week!</p>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">Wake time vs. deadline</div>
+      <div class="axis-caps"><span>Window start</span><span>Deadline</span></div>
+
+      <div class="chart-row">
+        <div class="day-label">Mon</div>
+        <div class="track"><div class="dot accent" style="left:112px;"></div></div>
+        <div class="value">12m early</div>
+      </div>
+      <div class="chart-row">
+        <div class="day-label">Tue</div>
+        <div class="track"><div class="dot accent" style="left:149px;"></div></div>
+        <div class="value">6m early</div>
+      </div>
+      <div class="chart-row">
+        <div class="day-label">Wed</div>
+        <div class="track"><div class="dot gray" style="left:186px;"></div></div>
+        <div class="value">At deadline</div>
+      </div>
+      <div class="chart-row">
+        <div class="day-label">Thu</div>
+        <div class="track"><div class="dot accent" style="left:74px;"></div></div>
+        <div class="value">18m early</div>
+      </div>
+      <div class="chart-row">
+        <div class="day-label">Fri</div>
+        <div class="track"><div class="dot accent" style="left:130px;"></div></div>
+        <div class="value">9m early</div>
+      </div>
+      <div class="chart-row">
+        <div class="day-label">Sat</div>
+        <div class="track"><div class="dot accent" style="left:50px;"></div></div>
+        <div class="value">22m early</div>
+      </div>
+      <div class="chart-row">
+        <div class="day-label">Sun</div>
+        <div class="track"><div class="dot gray" style="left:186px;"></div></div>
+        <div class="value">At deadline</div>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><span class="legend-dot accent"></span>Smart wake</div>
+        <div class="legend-item"><span class="legend-dot gray"></span>Deadline reached</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="tabbar">
+    <div class="tabs-pill">
+      <div class="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg>
+        <span>Home</span>
+      </div>
+      <div class="tab active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></svg>
+        <span>History</span>
+      </div>
+      <div class="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.1l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.9-1.1L14 3h-4l-.6 2.8a7 7 0 0 0-1.9 1.1l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .7.1 1.1l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.9 1.1L10 21h4l.6-2.8a7 7 0 0 0 1.9-1.1l2.4 1 2-3.4-2-1.6c.1-.4.1-.7.1-1.1z"/></svg>
+        <span>Settings</span>
+      </div>
+    </div>
+    <button class="add-btn" aria-label="Add alarm">
+      <svg viewBox="0 0 24 24"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" fill="#fff" stroke="#E8790A" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#F5A623","options":["#F5A623","#E8940F","#D98A1F","#C77B14"]}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#F5A623' };
+  }
+}
+</script>
+</body>
+</html>

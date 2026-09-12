@@ -1,0 +1,257 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .screen {
+    width: 375px; height: 812px; position: relative; overflow: hidden;
+    background: var(--bg);
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--ink);
+  }
+  a { color: var(--accent); text-decoration: none; }
+
+  .blob-bg { position: absolute; inset: 0; pointer-events: none; }
+  .blob-bg svg { width: 100%; height: 100%; display: block; }
+
+  .header { position: relative; padding: 58px 24px 0; display: flex; align-items: center; justify-content: space-between; }
+  .wordmark { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; }
+  .eyebrow { font-size: 12.5px; font-weight: 700; color: var(--ink-faint); }
+
+  .streak {
+    display: flex; align-items: center; gap: 5px; background: var(--card-bg);
+    border-radius: 100px; padding: 7px 13px 7px 9px;
+    box-shadow: 0 1px 2px rgba(43,36,32,0.06), 0 6px 14px rgba(43,36,32,0.1);
+  }
+  .streak svg { width: 12px; height: 17px; }
+  .streak span { font-size: 13.5px; font-weight: 800; color: var(--ink); }
+
+  .content { position: relative; height: calc(812px - 92px - 108px); overflow-y: auto; padding: 16px 24px 24px; }
+
+  .hero {
+    position: relative; overflow: hidden;
+    border-radius: 24px; padding: 18px 20px; display: flex; align-items: center; gap: 16px;
+    background: var(--card-bg);
+    box-shadow: 0 1px 2px rgba(43,36,32,0.05), 0 10px 24px rgba(43,36,32,0.08);
+  }
+  .hero-glow {
+    position: absolute; width: 160px; height: 160px; border-radius: 50%;
+    background: var(--accent-soft); top: -70px; right: -60px; opacity: 0.8; pointer-events: none;
+  }
+  .hero-ring { position: relative; width: 92px; height: 92px; flex-shrink: 0; }
+  .hero-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .hero-ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .hero-ring-center .num { font-size: 19px; font-weight: 800; line-height: 1.1; color: var(--ink); }
+  .hero-ring-center .num span { font-size: 10px; font-weight: 700; opacity: 0.6; margin: 0 1px; }
+  .hero-ring-center .cap { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-faint); margin-top: 3px; }
+  .hero-info { position: relative; flex: 1; min-width: 0; }
+  .hero-label { font-size: 11px; font-weight: 800; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+  .hero-range { font-size: 19px; font-weight: 800; margin-top: 5px; letter-spacing: -0.01em; }
+  .hero-sub { margin-top: 4px; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+
+  .section-row { display: flex; align-items: center; justify-content: space-between; margin: 24px 0 12px; }
+  .section-title { font-size: 15px; font-weight: 800; }
+  .kebab { display: flex; gap: 3px; padding: 6px; }
+  .kebab span { width: 3.5px; height: 3.5px; border-radius: 50%; background: var(--ink-faint); }
+
+  .list { display: flex; flex-direction: column; gap: 12px; }
+  .card {
+    background: var(--card-bg); border-radius: 20px; padding: 16px 16px 14px;
+    box-shadow: 0 1px 2px rgba(43,36,32,0.05), 0 8px 20px rgba(43,36,32,0.06);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .card.dim { opacity: 0.5; }
+  .card-main { flex: 1; min-width: 0; }
+  .repeat-label { display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+  .repeat-label svg { width: 11px; height: 11px; }
+  .window { font-size: 21px; font-weight: 800; margin-top: 3px; letter-spacing: -0.01em; }
+  .window .ampm { font-size: 12px; font-weight: 700; color: var(--ink-faint); margin-left: 3px; }
+
+  .mission-icon { width: 34px; height: 34px; border-radius: 11px; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .mission-icon svg { width: 18px; height: 18px; color: color-mix(in oklch, var(--accent) 60%, black); }
+
+  .toggle { width: 46px; height: 27px; border-radius: 100px; padding: 3px; flex-shrink: 0; }
+  .toggle.on { background: var(--accent); }
+  .toggle.off { background: var(--track-off); }
+  .knob { width: 21px; height: 21px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+  .toggle.on .knob { transform: translateX(19px); }
+
+  .tabbar {
+    position: absolute; left: 20px; right: 20px; bottom: 26px; height: 64px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .tabs-pill {
+    flex: 1; height: 100%; background: var(--card-bg); border-radius: 22px;
+    display: flex; align-items: center; justify-content: space-around;
+    box-shadow: 0 10px 26px rgba(43,36,32,0.16), 0 2px 6px rgba(43,36,32,0.08);
+  }
+  .tab { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .tab svg { width: 20px; height: 20px; }
+  .tab span { font-size: 10px; font-weight: 700; }
+  .tab.active svg, .tab.active span { color: var(--ink); }
+  .tab:not(.active) svg, .tab:not(.active) span { color: var(--ink-faint); }
+  .add-btn {
+    width: 64px; height: 64px; flex-shrink: 0; border-radius: 22px;
+    background: #FBC873; border: 4px solid #E8790A;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 10px 22px rgba(232,121,10,0.35);
+  }
+  .add-btn svg { width: 26px; height: 26px; }
+</style>
+</helmet>
+
+<div class="screen" style="--bg: #FBF3E4; --ink: #2B2420; --ink-soft: #6B5D4F; --ink-faint: #9C8C7A; --card-bg: #FFFDF7; --track-off: #EDE2CE; --accent: {{accent}}; --accent-2: #F6D488; --accent-soft: color-mix(in oklch, var(--accent) 20%, white);">
+
+  <div class="blob-bg">
+    <svg viewBox="0 0 540 960" preserveAspectRatio="none">
+      <rect x="0" y="0" width="540" height="960" fill="#F2F3F4"></rect>
+      <path d="M0 846L11.3 839.7C22.7 833.3 45.3 820.7 67.8 813.7C90.3 806.7 112.7 805.3 135.2 797C157.7 788.7 180.3 773.3 202.8 782.8C225.3 792.3 247.7 826.7 270.2 845C292.7 863.3 315.3 865.7 337.8 858.3C360.3 851 382.7 834 405.2 818.2C427.7 802.3 450.3 787.7 472.8 781.2C495.3 774.7 517.7 776.3 528.8 777.2L540 778L540 961L528.8 961C517.7 961 495.3 961 472.8 961C450.3 961 427.7 961 405.2 961C382.7 961 360.3 961 337.8 961C315.3 961 292.7 961 270.2 961C247.7 961 225.3 961 202.8 961C180.3 961 157.7 961 135.2 961C112.7 961 90.3 961 67.8 961C45.3 961 22.7 961 11.3 961L0 961Z" fill="var(--accent)" stroke-linecap="round" stroke-linejoin="miter"></path>
+    </svg>
+  </div>
+
+  <div class="header">
+    <div>
+      <div class="eyebrow">Good morning</div>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <svg width="26" height="26" viewBox="0 0 376 353">
+        <g transform="matrix(1,0,0,1,-713.435150401,-350.340323849)">
+        <g transform="matrix(1,0,0,1,-41,54)">
+          <g transform="matrix(1,0,0,1,-7,0)"><path d="M954.6559520023504,388.0421359804914 C941.0677129563019,387.8634353983481 930.2972943474764,367.39157059856296 930.6263830032075,342.3679513815315 C930.9554716589386,317.34433216450003 942.2605282313287,297.16278462014475 955.8487672773774,297.3414852022881 C969.437006323426,297.5201857844314 980.2074249322515,317.99205058421654 979.8783362765204,343.015669801248 C979.5492476207893,368.0392890182795 968.2441910483991,388.22083656263476 954.6559520023504,388.0421359804914 Z" fill="#f5a623" stroke-width="2" stroke="#f5a623"/></g>
+          <g transform="matrix(1,0,0,1,-7,0)"><path d="M852.155138022817,386.4461524128949 C852.155138022817,362.6282052651943 877.9075361238786,343.28086749225963 909.6105675226316,343.28086749225963 L993.6569396008728,343.28086749225963 C1025.3599709996258,343.28086749225963 1051.1123691006874,362.6282052651943 1051.1123691006874,386.4461524128949 L1051.1123691006874,446.3781182531159 C1051.1123691006874,470.19606540081645 1025.3599709996258,489.54340317375113 993.6569396008728,489.54340317375113 L909.6105675226316,489.54340317375113 C877.9075361238786,489.54340317375113 852.155138022817,470.19606540081645 852.155138022817,446.3781182531159 L852.155138022817,386.4461524128949 Z" fill="#f2f3f4" stroke-width="9" stroke-linecap="round" stroke="#b7b8ba"/></g>
+          <g transform="matrix(1,0,0,1,-7,0)"><path d="M821.7777777777778,461.981707317073 C821.7777777777778,428.91536898419247 854.9136124401101,402.0555555555553 895.7061787324317,402.0555555555553 L1003.849376823124,402.0555555555553 C1044.6419431154454,402.0555555555553 1077.7777777777778,428.91536898419247 1077.7777777777778,461.981707317073 L1077.7777777777778,545.1849593495934 C1077.7777777777778,578.2512976824739 1044.6419431154454,605.1111111111111 1003.849376823124,605.1111111111111 L895.7061787324317,605.1111111111111 C854.9136124401101,605.1111111111111 821.7777777777778,578.2512976824739 821.7777777777778,545.1849593495934 L821.7777777777778,461.981707317073 Z" fill="#f2f3f4" stroke-width="9" stroke-linecap="round" stroke="#b7b8ba"/></g>
+          <g transform="matrix(1,0,0,1,-7,0)"><path d="M855.7457253485986,438.6599390844504 C871.686160492463,433.26820734381306 893.0718302890035,453.83285963584535 903.458673807981,484.5411391698263 C913.8455173269584,515.2494187038072 909.3343303487809,544.5734871218623 893.3938952049166,549.9652188624997 C877.4534600610522,555.356950603137 856.0677902645117,534.7922983111047 845.6809467455342,504.08401877712373 C835.2941032265568,473.3757392431428 839.8052902047343,444.0516708250877 855.7457253485986,438.6599390844504 Z" fill="#000000" stroke-width="2" stroke="#000000"/></g>
+          <g transform="matrix(1,0,0,1,-7,0)"><path d="M1048.8331773788104,450.33602422349185 C1063.7136554028602,458.19348039673974 1063.5053540506442,487.86178683788194 1048.3684422652107,516.5281233988176 C1033.231530479777,545.1944599597533 1008.8483804079206,562.097530364629 993.9679023838708,554.240074191381 C979.087424359821,546.3826180181331 979.295725712037,516.714311576991 994.4326374974706,488.0479750160553 C1009.5695492829043,459.3816384551197 1033.9526993547606,442.47856805024395 1048.8331773788104,450.33602422349185 Z" fill="#000000" stroke-width="2" stroke="#000000"/></g>
+          <g transform="matrix(1,0,0,1,-7,0)"><path d="M1041.7152167702575,328.7731770536633 C1051.008881668079,333.89958977995013 1041.3474845378726,369.2649346260621 1020.159953469889,407.6757736028621 C998.9724224019054,446.0866125796621 974.2125222133461,473.1235790005562 964.9188573155245,467.9971662742694 C955.6251924177029,462.87075354798253 965.2865895479094,427.5054087018706 986.474120615893,389.0945697250706 C1007.6616516838766,350.6837307482706 1032.4215518724359,323.64676432737645 1041.7152167702575,328.7731770536633 Z" fill="#f5a623" stroke-width="2" stroke="#f5a623"/></g>
+          <g transform="matrix(1,0,0,1,-7,0)"><path d="M854.7576769379283,328.5424343632478 C864.0639675238831,323.4389776716509 888.7570544237702,350.53697888846773 909.8497078991447,389.0000000000003 C930.9423613745192,427.46302111153284 940.5164335026454,462.85210634239763 931.2101429166906,467.9555630339946 C921.9038523307358,473.05901972559155 897.2107654308487,445.9610185087747 876.1181119554742,407.49799739724216 C855.0254584800997,369.0349762857096 845.4513863519735,333.6458910548448 854.7576769379283,328.5424343632478 Z" fill="#f5a623" stroke-width="2" stroke="#f5a623"/></g>
+          <g transform="matrix(1,0,0,1,-7,0)"><path d="M1031.3331773788104,449.3360242234918 C1040.437626212164,449.3360242234918 1047.8331773788104,456.5074677790276 1047.8331773788104,465.3360242234918 C1047.8331773788104,474.164580667956 1040.437626212164,481.3360242234918 1031.3331773788104,481.3360242234918 C1022.2287285454566,481.3360242234918 1014.8331773788104,474.164580667956 1014.8331773788104,465.3360242234918 C1014.8331773788104,456.5074677790276 1022.2287285454566,449.3360242234918 1031.3331773788104,449.3360242234918 Z" fill="#f2f3f4"/></g>
+          <g transform="matrix(1,0,0,1,-7,0)"><path d="M855.7457253485986,438.6599390844504 C864.8501741819524,438.6599390844504 872.2457253485986,445.8313826399862 872.2457253485986,454.6599390844504 C872.2457253485986,463.4884955289146 864.8501741819524,470.6599390844504 855.7457253485986,470.6599390844504 C846.6412765152448,470.6599390844504 839.2457253485986,463.4884955289146 839.2457253485986,454.6599390844504 C839.2457253485986,445.8313826399862 846.6412765152448,438.6599390844504 855.7457253485986,438.6599390844504 Z" fill="#f2f3f4"/></g>
+          <g transform="matrix(1,0,0,1,-7,0)"><path d="M-42,-78 C-37.714285714285715,-103 -0.5535714285714306,-107.85714285714286 17,-104 C34.55357142857143,-100.14285714285714 32.5,-87.57142857142857 40,-88 C47.5,-88.42857142857143 64.55357142857143,-101.85714285714286 81,-105 C97.44642857142857,-108.14285714285714 113.28571428571429,-101 110,-75 C106.71428571428571,-49 84.30357142857143,-4.142857142857142 68,1 C51.69642857142857,6.142857142857142 41.5,-28.428571428571427 33,-29 C24.5,-29.571428571428573 17.696428571428573,3.8571428571428577 0,-2 C-17.696428571428573,-7.857142857142858 -46.285714285714285,-53 -42,-78 Z" transform="matrix(0.49716121,0,0,0.792808249,927.095550947,647.793701111)" fill="#f5a623" stroke-width="2" stroke="#f5a623"/></g>
+          <g transform="matrix(1,0,0,1,-7,0)"><path d="M1136.457278279974,368.7988900152599 C1133.5192226949164,379.32193619218725 1106.0528405096238,380.8674854678978 1075.1778285343996,372.247120238348 C1044.3028165591752,363.62675500879817 1021.6096042400573,348.0765464072511 1024.547659825115,337.5535002303237 C1027.4857154101726,327.03045405339634 1054.9520975954651,325.4849047776858 1085.8271095706893,334.1052700072356 C1116.7021215459138,342.7256352367854 1139.3953338650317,358.2758438383325 1136.457278279974,368.7988900152599 Z" fill="#f5a623" stroke-width="2" stroke="#f5a623"/></g>
+          <g transform="matrix(1,0,0,1,-7,0)"><path d="M878.2636484359623,345.5737267266207 C877.3779606522415,356.46327348543474 850.7052299511687,363.1979828229072 818.7548915291694,360.5993416624561 C786.80455310717,358.00070050200503 761.5707122152605,347.04423452277666 762.4563999989814,336.1546877639626 C763.3420877827022,325.26514100514856 790.014818483775,318.5304316676761 821.9651569057743,321.1290728281272 C853.9154953277737,323.7277139885783 879.1493362196832,334.68417996780664 878.2636484359623,345.5737267266207 Z" fill="#f5a623" stroke-width="2" stroke="#f5a623"/></g>
+        </g>
+        </g>
+      </svg>
+        <div class="wordmark">BuzzBee</div>
+      </div>
+    </div>
+    <div class="streak">
+      <svg viewBox="0 0 133 193">
+        <g transform="matrix(1,0,0,1,-770.116583231,-396.886209288)">
+          <path d="M882.4586075265507,404.06997300441486 C894.6432780708984,410.05999042458916 897.2014311304926,429.8553524162319 888.1660287223727,448.2348317826446 C879.1306263142528,466.61431114905736 861.8935438557278,476.6782811298598 849.70887331138,470.6882637096855 C837.5242027670323,464.6982462895112 834.9660497074382,444.90288429786847 844.001452115558,426.52340493145573 C853.0368545236779,408.143925565043 870.2739369822029,398.07995558424057 882.4586075265507,404.06997300441486 Z" fill="#f2f3f4" stroke-width="11" stroke-linecap="round" stroke="#f5a623"/>
+          <path d="M868.6263157324323,423.2696144445742 C897.2629185049874,434.851196007862 906.14800766094,479.8061060678122 888.4495807967589,523.5672121861027 C870.7511539325777,567.3283183043931 833.1131718033151,593.4677721824822 804.4765690307601,581.8861906191944 C775.839966258205,570.3046090559067 766.9548771022523,525.3496989959564 784.6533039664334,481.588592877666 C802.3517308306147,437.8274867593755 839.9897129598772,411.6880328812864 868.6263157324323,423.2696144445742 Z" fill="#f2f3f4" stroke-width="11" stroke-linecap="round" stroke="#f5a623"/>
+          <path d="M0,0 C18.049493489455386,-4.185845979452003 36.09898697891077,-8.371691958904005 50.80756298160196,-3.144713359617924 C65.51613898429315,2.082265239668157 76.88379750022015,16.72206841769232 88.25145601614713,31.36187159571648" transform="matrix(1,0,0,1,775.643075912,530.697848816)" fill="none" stroke-width="11" stroke-linecap="round" stroke="#f5a623"/>
+          <path d="M0,0 C21.819811723218805,-3.592812050069501 43.63962344643761,-7.185624100139002 60.799425249948285,-1.554694438460814 C77.95922705345896,4.076235223217374 90.45901893726155,18.930906596643247 102.9588108210641,33.78557797006911" transform="matrix(1,0,0,1,782.109137051,488.41399093)" fill="none" stroke-width="11" stroke-linecap="round" stroke="#f5a623"/>
+          <path d="M0,0 C16.170957058269114,-0.09778077297723797 32.34191411653823,-0.19556154595447595 46.721408050956995,4.831992811521303 C61.100901985375764,9.859547168997082 73.68893279594417,20.01243665692588 86.27696360651254,30.165326144854674" transform="matrix(1,0,0,1,807.056369727,445.390229411)" fill="none" stroke-width="11" stroke-linecap="round" stroke="#f5a623"/>
+        </g>
+      </svg>
+      <span>2</span>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <div class="hero">
+      <div class="hero-glow"></div>
+      <div class="hero-ring">
+        <svg viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="42" fill="none" stroke="var(--track-off)" stroke-width="9"/>
+          <circle cx="50" cy="50" r="42" fill="none" stroke="var(--accent)" stroke-width="9" stroke-linecap="round" stroke-dasharray="172 264"/>
+        </svg>
+        <div class="hero-ring-center">
+          <div class="num">7<span>h</span>27<span>m</span></div>
+          <div class="cap">left</div>
+        </div>
+      </div>
+      <div class="hero-info">
+        <div class="hero-label">Smart Wake begins in</div>
+        <div class="hero-range">6:30&ndash;7:00 AM</div>
+        <div class="hero-sub">Weekdays</div>
+      </div>
+    </div>
+
+    <div class="section-row">
+      <div class="section-title">Your Alarms</div>
+      <div class="kebab"><span></span><span></span><span></span></div>
+    </div>
+
+    <div class="list">
+
+      <div class="card">
+        <div class="mission-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9.5" r="1"/><circle cx="15" cy="9.5" r="1"/><circle cx="9" cy="14.5" r="1"/><circle cx="15" cy="14.5" r="1"/></svg>
+        </div>
+        <div class="card-main">
+          <div class="repeat-label">
+            <svg viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="13" rx="6" ry="7" fill="currentColor" opacity="0.3"/></svg>
+            Weekdays &middot; Smart Wake
+          </div>
+          <div class="window">6:30&ndash;7:00<span class="ampm">AM</span></div>
+        </div>
+        <div class="toggle on"><div class="knob"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="mission-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>
+        </div>
+        <div class="card-main">
+          <div class="repeat-label">One-time &middot; Smart Wake</div>
+          <div class="window">9:00&ndash;9:20<span class="ampm">AM</span></div>
+        </div>
+        <div class="toggle on"><div class="knob"></div></div>
+      </div>
+
+      <div class="card dim">
+        <div class="mission-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M4 9l-1.5 1.5M20 9l1.5 1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div class="card-main">
+          <div class="repeat-label">Weekends &middot; Fixed time</div>
+          <div class="window">7:15<span class="ampm">AM</span></div>
+        </div>
+        <div class="toggle off"><div class="knob"></div></div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <div class="tabbar">
+    <div class="tabs-pill">
+      <div class="tab active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg>
+        <span>Home</span>
+      </div>
+      <div class="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></svg>
+        <span>History</span>
+      </div>
+      <div class="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.1l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.9-1.1L14 3h-4l-.6 2.8a7 7 0 0 0-1.9 1.1l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .7.1 1.1l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.9 1.1L10 21h4l.6-2.8a7 7 0 0 0 1.9-1.1l2.4 1 2-3.4-2-1.6c.1-.4.1-.7.1-1.1z"/></svg>
+        <span>Settings</span>
+      </div>
+    </div>
+    <button class="add-btn" aria-label="Add alarm">
+      <svg viewBox="0 0 24 24"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" fill="#fff" stroke="#E8790A" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#F5A623","options":["#F5A623","#E8940F","#D98A1F","#C77B14"]}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#F5A623' };
+  }
+}
+</script>
+</body>
+</html>
