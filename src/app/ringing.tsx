@@ -36,7 +36,9 @@ const AMBIENT_CHECK_MS = 1200;
 // the person fell back asleep mid-mission: the alarm resumes ringing and
 // the mission resets to 0, rather than staying silently "in progress"
 // forever.
-const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000;
+// TEMPORARY: shortened to 10s for on-device testing — revert to 3 * 60 * 1000
+// before this ships.
+const INACTIVITY_TIMEOUT_MS = 10 * 1000;
 
 // "<Verb> to dismiss" pill-eyebrow copy, per design/Ringing*.dc.html.
 const MISSION_VERBS: Record<DismissMethod, string> = {
