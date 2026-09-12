@@ -10,7 +10,7 @@ import { FloatingTabBar } from '@/components/floating-tab-bar';
 import { StreakIcon } from '@/components/icons';
 import { WaveBackground } from '@/components/wave-background';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
-import { countdownToWindowStart, formatClock, repeatSummary } from '@/lib/alarm-utils';
+import { countdownToRingTime, countdownToWindowStart, formatClock, repeatSummary } from '@/lib/alarm-utils';
 import { useAlarmDraft } from '@/lib/alarm-draft-context';
 import { getAlarms, getRecentWakeEvents, saveAlarm } from '@/lib/db';
 import { scheduleAlarmNotification, cancelAlarmNotification } from '@/lib/scheduling';
@@ -66,9 +66,16 @@ export default function HomeScreen() {
           {primary ? (
             <View style={styles.hero}>
               <View style={styles.heroGlow} />
-              <CountdownDial {...countdownToWindowStart(primary)} size={92} />
+              <CountdownDial
+                {...(primary.smartWakeEnabled
+                  ? countdownToWindowStart(primary)
+                  : countdownToRingTime(primary))}
+                size={92}
+              />
               <View style={styles.heroText}>
-                <Text style={styles.heroLabel}>Smart Wake begins in</Text>
+                <Text style={styles.heroLabel}>
+                  {primary.smartWakeEnabled ? 'Smart Wake begins in' : 'Rings in'}
+                </Text>
                 <Text style={styles.heroRange}>
                   {formatClock(primary.windowStart).value}–{formatClock(primary.windowEnd).value}{' '}
                   {formatClock(primary.windowEnd).ampm}

@@ -63,9 +63,14 @@ export function startMovementDetector(
   };
 }
 
-/** Is `alarm`'s wake window open right now (today's date, time-of-day only)? */
+/**
+ * Is `alarm`'s wake window open right now (today's date, time-of-day only)?
+ * Applies to every enabled alarm, not just Smart-Wake ones — a fixed-time
+ * alarm still needs to be "monitored" so its deadline check below can fire
+ * it, it just never runs the movement detector.
+ */
 export function isWindowActiveNow(alarm: Alarm, now: Date = new Date()): boolean {
-  if (!alarm.enabled || !alarm.smartWakeEnabled) return false;
+  if (!alarm.enabled) return false;
   const dow = now.getDay();
   if (alarm.repeatDays.length > 0 && !alarm.repeatDays.includes(dow)) return false;
 

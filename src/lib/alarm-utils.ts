@@ -47,9 +47,8 @@ export function nextOccurrence(time: string, repeatDays: number[], from: Date = 
   return candidateFor(7);
 }
 
-export function countdownToWindowStart(alarm: Alarm, from: Date = new Date()) {
-  const next = nextOccurrence(alarm.windowStart, alarm.repeatDays, from);
-  const diffMs = next.getTime() - from.getTime();
+function countdownTo(target: Date, from: Date) {
+  const diffMs = target.getTime() - from.getTime();
   const totalMinutes = Math.max(0, Math.round(diffMs / 60000));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
@@ -57,5 +56,15 @@ export function countdownToWindowStart(alarm: Alarm, from: Date = new Date()) {
   // Progress within a 24h lookback window, just for the dial's visual fill.
   const dayMs = 24 * 60 * 60 * 1000;
   const progress = 1 - Math.min(1, diffMs / dayMs);
-  return { label, progress, next };
+  return { label, progress, next: target };
+}
+
+/** For Smart-Wake alarms: countdown to when the wake window opens. */
+export function countdownToWindowStart(alarm: Alarm, from: Date = new Date()) {
+  return countdownTo(nextOccurrence(alarm.windowStart, alarm.repeatDays, from), from);
+}
+
+/** For fixed-time alarms (Smart Wake off): countdown to when it actually rings. */
+export function countdownToRingTime(alarm: Alarm, from: Date = new Date()) {
+  return countdownTo(nextOccurrence(alarm.windowEnd, alarm.repeatDays, from), from);
 }

@@ -14,14 +14,15 @@ import { Alarm } from '@/lib/types';
 const CHECK_INTERVAL_MS = 5000;
 
 /**
- * Foreground-only Smart Wake monitor (see PLAN.md's Known Technical Risk
+ * Foreground-only alarm monitor (see PLAN.md's Known Technical Risk
  * section — continuous background accelerometer sampling isn't reliable on
  * iOS in a managed app). While the app is in the foreground, this polls for
- * any enabled, Smart-Wake alarm whose window is currently open, starts
- * accelerometer sampling for it, and navigates to the Ringing screen either
- * the moment gentle movement is detected or when the hard deadline passes.
- * The scheduled local notification (see lib/scheduling.ts) remains the
- * backgrounded/killed-app safety net.
+ * any enabled alarm whose window is currently open. Smart-Wake alarms get
+ * accelerometer sampling and can ring early on movement detection; fixed-
+ * time alarms (Smart Wake off) skip detection and simply ring the instant
+ * their window's end time arrives. Either way, the scheduled local
+ * notification (see lib/scheduling.ts) remains the backgrounded/killed-app
+ * safety net.
  */
 export function useSmartWakeMonitor() {
   const router = useRouter();
@@ -63,14 +64,19 @@ export function useSmartWakeMonitor() {
       );
       if (!candidate) return;
 
-      const detector = startMovementDetector(() => {
-        monitored.current = null;
-        triggeredToday.current.add(`${candidate.id}:${todayKey}`);
-        router.push({
-          pathname: '/ringing',
-          params: { alarmId: candidate.id, triggeredBy: 'smart-detection' },
-        });
-      });
+      // Fixed-time alarms (Smart Wake off) don't get movement detection —
+      // they're still "monitored" purely so the deadline check above fires
+      // them the instant their window's end time arrives.
+      const detector = candidate.smartWakeEnabled
+        ? startMovementDetector(() => {
+            monitored.current = null;
+            triggeredToday.current.add(`${candidate.id}:${todayKey}`);
+            router.push({
+              pathname: '/ringing',
+              params: { alarmId: candidate.id, triggeredBy: 'smart-detection' },
+            });
+          })
+        : { stop: () => {} };
       monitored.current = { alarm: candidate, detector };
     }, CHECK_INTERVAL_MS);
 
