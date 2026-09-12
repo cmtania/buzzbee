@@ -34,7 +34,12 @@
         }
       ],
       "expo-background-task",
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "BuzzBee listens for claps and buzzing sounds to dismiss the alarm, and can optionally sense room noise before ringing. Audio is analyzed on-device only — it's never recorded or uploaded."
+        }
+      ],
       "expo-font",
       "expo-sqlite",
       [
