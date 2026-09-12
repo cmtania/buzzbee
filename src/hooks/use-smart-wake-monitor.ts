@@ -28,25 +28,39 @@ export function useSmartWakeMonitor() {
   const router = useRouter();
   const monitored = useRef<{ alarm: Alarm; detector: DetectorHandle } | null>(null);
   const triggeredToday = useRef<Set<string>>(new Set());
-  const appActive = useRef(AppState.currentState === 'active');
 
   useEffect(() => {
+    // Read AppState fresh on every tick rather than caching it in a ref
+    // that's only updated by the 'change' event — if that ref ever
+    // initializes stale (e.g. AppState.currentState isn't 'active' yet at
+    // the exact moment this hook first mounts), and the app never actually
+    // transitions foreground/background afterward, the cached value would
+    // never self-correct and the monitor would silently never fire.
     const appStateSub = AppState.addEventListener('change', (state) => {
-      appActive.current = state === 'active';
-      if (!appActive.current && monitored.current) {
+      if (state !== 'active' && monitored.current) {
         monitored.current.detector.stop();
         monitored.current = null;
       }
     });
 
     const interval = setInterval(async () => {
-      if (!appActive.current) return;
+      if (AppState.currentState !== 'active') return;
       const now = new Date();
       const todayKey = now.toISOString().slice(0, 10);
 
       if (monitored.current) {
-        if (now >= todaysDeadline(monitored.current.alarm, now)) {
+        const deadline = todaysDeadline(monitored.current.alarm, now);
+        console.log(
+          '[smart-wake-monitor] watching',
+          monitored.current.alarm.id,
+          'now',
+          now.toTimeString().slice(0, 8),
+          'deadline',
+          deadline.toTimeString().slice(0, 8)
+        );
+        if (now >= deadline) {
           const alarm = monitored.current.alarm;
+          console.log('[smart-wake-monitor] deadline reached — firing ring for', alarm.id);
           monitored.current.detector.stop();
           monitored.current = null;
           triggeredToday.current.add(`${alarm.id}:${todayKey}`);
@@ -63,6 +77,16 @@ export function useSmartWakeMonitor() {
         (a) => isWindowActiveNow(a, now) && !triggeredToday.current.has(`${a.id}:${todayKey}`)
       );
       if (!candidate) return;
+
+      console.log(
+        '[smart-wake-monitor] started monitoring',
+        candidate.id,
+        candidate.windowStart,
+        '-',
+        candidate.windowEnd,
+        'smartWake:',
+        candidate.smartWakeEnabled
+      );
 
       // Fixed-time alarms (Smart Wake off) don't get movement detection —
       // they're still "monitored" purely so the deadline check above fires
