@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ChevronRight } from '@/components/icons';
+import { ChevronRight, LongArrowRight } from '@/components/icons';
 import { TimeStepper } from '@/components/time-stepper';
 import { Toggle } from '@/components/toggle';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
@@ -63,6 +63,9 @@ export default function AddEditScreen() {
                 value={draft.windowStart}
                 onChange={(v) => setDraft((d) => ({ ...d, windowStart: v }))}
               />
+              <View style={styles.timeSep}>
+                <LongArrowRight size={16} color={Colors.inkFaint} />
+              </View>
               <TimeStepper
                 label="Hard deadline"
                 value={draft.windowEnd}
@@ -170,7 +173,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 10,
   },
-  timeRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  timeRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  timeSep: { flexShrink: 0 },
   hint: { fontSize: 12.5, color: Colors.inkFaint, marginTop: 10, lineHeight: 17, fontFamily: Fonts.medium },
   rowCard: {
     backgroundColor: Colors.cardBg,

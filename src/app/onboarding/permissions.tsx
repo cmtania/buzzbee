@@ -2,51 +2,49 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { BellIcon, ShakeIcon } from '@/components/icons';
 import { OnboardingScreen } from '@/components/onboarding-screen';
-import { Fonts, Radii } from '@/constants/theme';
+import { Fonts } from '@/constants/theme';
 import { ensureNotificationPermission } from '@/lib/scheduling';
 
 const INK = '#2B2420';
 const INK_FAINT = '#9C8C7A';
-const CARD_BG = '#FFFDF7';
+const ACCENT_DEEP = '#E8790A';
 const ACCENT = '#F5A623';
 
 export default function PermissionsScreen() {
   const router = useRouter();
-  const [notificationsGranted, setNotificationsGranted] = useState<boolean | null>(null);
 
   useEffect(() => {
-    ensureNotificationPermission().then(setNotificationsGranted);
+    ensureNotificationPermission();
   }, []);
 
   return (
     <OnboardingScreen
       step={5}
-      title="A couple of permissions"
-      subtitle="So BuzzBee can sense light sleep and still ring even if your phone's on Silent."
+      title="BuzzBee needs a couple permissions"
+      continueLabel="Allow & continue"
       onContinue={() => router.push('/onboarding/features')}>
       <View style={styles.row}>
         <View style={styles.iconWrap}>
-          <Text style={styles.emoji}>📳</Text>
+          <ShakeIcon size={21} color={ACCENT_DEEP} />
         </View>
         <View style={styles.main}>
           <Text style={styles.title}>Motion & Fitness</Text>
-          <Text style={styles.sub}>Reads gentle phone movement to detect light sleep.</Text>
+          <Text style={styles.desc}>
+            Lets BuzzBee sense light sleep from gentle phone movement during your wake window.
+          </Text>
         </View>
-        <Text style={styles.status}>Built-in</Text>
       </View>
 
-      <View style={styles.row}>
+      <View style={[styles.row, styles.rowLast]}>
         <View style={styles.iconWrap}>
-          <Text style={styles.emoji}>🔔</Text>
+          <BellIcon size={21} color={ACCENT_DEEP} />
         </View>
         <View style={styles.main}>
           <Text style={styles.title}>Notifications</Text>
-          <Text style={styles.sub}>Lets BuzzBee ring at your hard deadline as a safety net.</Text>
+          <Text style={styles.desc}>So BuzzBee can ring reliably, even through Silent or Focus mode.</Text>
         </View>
-        <Text style={[styles.status, notificationsGranted && styles.statusGranted]}>
-          {notificationsGranted === null ? '…' : notificationsGranted ? 'Granted' : 'Denied'}
-        </Text>
       </View>
     </OnboardingScreen>
   );
@@ -55,25 +53,23 @@ export default function PermissionsScreen() {
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: CARD_BG,
-    borderRadius: Radii.lg,
-    padding: 16,
-    marginBottom: 12,
+    gap: 14,
+    paddingVertical: 18,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E3E5E7',
   },
+  rowLast: { borderBottomWidth: 0 },
   iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 13,
     backgroundColor: ACCENT + '26',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
-  emoji: { fontSize: 20 },
   main: { flex: 1, minWidth: 0 },
-  title: { fontFamily: Fonts.bold, fontSize: 15, color: INK },
-  sub: { fontFamily: Fonts.semiBold, fontSize: 12, color: INK_FAINT, marginTop: 2, lineHeight: 16 },
-  status: { fontFamily: Fonts.bold, fontSize: 12, color: INK_FAINT },
-  statusGranted: { color: '#3FAE5A' },
+  title: { fontFamily: Fonts.extraBold, fontSize: 15, color: INK },
+  desc: { fontFamily: Fonts.semiBold, fontSize: 12.5, color: INK_FAINT, marginTop: 3, lineHeight: 18 },
 });

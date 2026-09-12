@@ -5,14 +5,24 @@ import { CheckIcon } from '@/components/icons';
 import { OnboardingScreen } from '@/components/onboarding-screen';
 import { Fonts, Radii } from '@/constants/theme';
 import { useAlarmDraft } from '@/lib/alarm-draft-context';
-import { MISSION_ORDER, MissionIcon, missionLabel, missionSubtitle } from '@/lib/mission-meta';
+import { MISSION_ORDER, missionCountLabel, MissionIcon, missionLabel } from '@/lib/mission-meta';
 import { DismissMethod } from '@/lib/types';
 
 const INK = '#2B2420';
-const INK_FAINT = '#9C8C7A';
+const INK_SOFT = '#6B5D4F';
 const CARD_BG = '#FFFDF7';
-const TRACK_OFF = '#E3E5E7';
 const ACCENT = '#F5A623';
+
+// Shorter copy than the Choose Mission sheet's, matching
+// design/OnboardMission.dc.html's more compact card layout.
+const ONBOARDING_DESCRIPTIONS: Record<DismissMethod, string> = {
+  math: 'Solve one equation',
+  clap: 'Clap your hands',
+  shake: 'Shake to dismiss',
+  buzz: 'Make a loud sound',
+  tap: 'Tap the screen',
+  random: 'Surprise mission',
+};
 
 export default function MissionScreen() {
   const router = useRouter();
@@ -41,11 +51,14 @@ export default function MissionScreen() {
                   <CheckIcon size={11} />
                 </View>
               )}
-              <View style={styles.iconWrap}>
-                <MissionIcon method={method} size={22} color="#E8790A" />
+              <View style={[styles.iconWrap, selected && styles.iconWrapSelected]}>
+                <MissionIcon method={method} size={21} color="#E8790A" />
               </View>
               <Text style={styles.cardTitle}>{missionLabel(method)}</Text>
-              <Text style={styles.cardSub}>{missionSubtitle(method)}</Text>
+              <Text style={styles.cardDesc}>{ONBOARDING_DESCRIPTIONS[method]}</Text>
+              <View style={[styles.countPill, selected && styles.countPillSelected]}>
+                <Text style={styles.countPillText}>{missionCountLabel(method)}</Text>
+              </View>
             </Pressable>
           );
         })}
@@ -61,7 +74,7 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_BG,
     borderRadius: Radii.lg,
     borderWidth: 2,
-    borderColor: TRACK_OFF,
+    borderColor: 'transparent',
     padding: 14,
     alignItems: 'center',
     gap: 5,
@@ -79,14 +92,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 42,
+    height: 42,
+    borderRadius: 13,
     backgroundColor: ACCENT + '26',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2,
   },
-  cardTitle: { fontFamily: Fonts.bold, fontSize: 14, color: INK, textAlign: 'center' },
-  cardSub: { fontFamily: Fonts.semiBold, fontSize: 10.5, color: INK_FAINT, textAlign: 'center' },
+  iconWrapSelected: { backgroundColor: '#fff' },
+  cardTitle: { fontFamily: Fonts.extraBold, fontSize: 13.5, color: INK, textAlign: 'center' },
+  cardDesc: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 10.5,
+    color: INK_SOFT,
+    textAlign: 'center',
+    lineHeight: 13,
+    minHeight: 26,
+  },
+  countPill: {
+    backgroundColor: ACCENT + '26',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radii.pill,
+  },
+  countPillSelected: { backgroundColor: '#fff' },
+  countPillText: { fontFamily: Fonts.extraBold, fontSize: 11, color: '#E8790A' },
 });

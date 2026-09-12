@@ -61,6 +61,27 @@ export const MISSION_SUBTITLES: Record<DismissMethod, string> = {
   random: 'Surprise mission each morning',
 };
 
+// Split description + count-pill, matching the Choose Mission card design
+// (design/ChooseMission.dc.html) — distinct from MISSION_SUBTITLES above,
+// which is a single combined sentence used in summary rows.
+export const MISSION_DESCRIPTIONS: Record<DismissMethod, string> = {
+  math: 'Solve one equation to wake up',
+  clap: 'Clap your hands to dismiss',
+  shake: 'Shake your phone to dismiss',
+  buzz: 'Make a long buzzing sound',
+  tap: 'Tap the screen to dismiss',
+  random: 'Surprise mission each morning',
+};
+
+export const MISSION_COUNT_LABELS: Record<DismissMethod, string> = {
+  math: '1 problem',
+  clap: `×${CLAP_TARGET}`,
+  shake: `×${SHAKE_TARGET}`,
+  buzz: `×${BUZZ_TARGET}`,
+  tap: `×${TAP_TARGET}`,
+  random: 'Mixes it up',
+};
+
 export const DEFAULT_SETTINGS: AppSettings = {
   windDownEnabled: true,
   windDownOffsetMin: 30,

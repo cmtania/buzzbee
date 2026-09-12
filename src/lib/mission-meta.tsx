@@ -8,7 +8,13 @@ import {
   ShakeIcon,
   TapIcon,
 } from '@/components/icons';
-import { DismissMethod, MISSION_LABELS, MISSION_SUBTITLES } from '@/lib/types';
+import {
+  DismissMethod,
+  MISSION_COUNT_LABELS,
+  MISSION_DESCRIPTIONS,
+  MISSION_LABELS,
+  MISSION_SUBTITLES,
+} from '@/lib/types';
 
 export const MISSION_ORDER: DismissMethod[] = ['math', 'clap', 'shake', 'buzz', 'tap', 'random'];
 
@@ -43,4 +49,12 @@ export function missionLabel(method: DismissMethod) {
 
 export function missionSubtitle(method: DismissMethod) {
   return MISSION_SUBTITLES[method];
+}
+
+export function missionDescription(method: DismissMethod) {
+  return MISSION_DESCRIPTIONS[method];
+}
+
+export function missionCountLabel(method: DismissMethod) {
+  return MISSION_COUNT_LABELS[method];
 }

@@ -1,9 +1,9 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Toggle } from '@/components/toggle';
-import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Radii, Shadows } from '@/constants/theme';
 import { formatClock, repeatSummary } from '@/lib/alarm-utils';
-import { MissionIcon, missionLabel } from '@/lib/mission-meta';
+import { MissionIcon } from '@/lib/mission-meta';
 import { Alarm } from '@/lib/types';
 
 export function AlarmCard({
@@ -21,20 +21,24 @@ export function AlarmCard({
   const end = formatClock(alarm.windowEnd);
 
   return (
-    <Pressable style={styles.card} onPress={onPress} onLongPress={onLongPress} delayLongPress={400}>
+    <Pressable
+      style={[styles.card, !alarm.enabled && styles.cardDim]}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={400}>
       <View style={styles.iconWrap}>
-        <MissionIcon method={alarm.dismissMethod} size={20} color={Colors.accentDeep} />
+        <MissionIcon method={alarm.dismissMethod} size={18} color={Colors.accentDeep} />
       </View>
       <View style={styles.main}>
-        <Text style={styles.repeatLabel}>{repeatSummary(alarm.repeatDays)}</Text>
+        <Text style={styles.repeatLabel}>
+          {repeatSummary(alarm.repeatDays)} · {alarm.smartWakeEnabled ? 'Smart Wake' : 'Fixed time'}
+        </Text>
         <Text style={styles.time}>
           {start.value}
-          <Text style={styles.ampm}> {start.ampm}</Text>
-          {'  →  '}
+          {'–'}
           {end.value}
           <Text style={styles.ampm}> {end.ampm}</Text>
         </Text>
-        <Text style={styles.missionLabel}>{missionLabel(alarm.dismissMethod)}</Text>
       </View>
       <Toggle value={alarm.enabled} onChange={onToggle} />
     </Pressable>
@@ -47,14 +51,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     backgroundColor: Colors.cardBg,
-    borderRadius: Radii.md,
-    padding: 14,
+    borderRadius: Radii.lg,
+    padding: 16,
     ...Shadows.card,
   },
+  cardDim: { opacity: 0.5 },
   iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 11,
     backgroundColor: Colors.accent + '26',
     alignItems: 'center',
     justifyContent: 'center',
@@ -70,25 +75,16 @@ const styles = StyleSheet.create({
     color: Colors.inkFaint,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    marginBottom: 2,
   },
   time: {
     fontFamily: Fonts.extraBold,
-    fontSize: 18,
+    fontSize: 21,
     color: Colors.ink,
+    marginTop: 3,
   },
   ampm: {
     fontFamily: Fonts.bold,
     fontSize: 12,
     color: Colors.inkFaint,
-  },
-  missionLabel: {
-    fontFamily: Fonts.semiBold,
-    fontSize: 12,
-    color: Colors.inkFaint,
-    marginTop: 2,
-  },
-  spacer: {
-    marginVertical: Spacing.xs,
   },
 });

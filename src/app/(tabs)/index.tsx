@@ -1,11 +1,14 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AlarmCard } from '@/components/alarm-card';
+import { BeeLogo } from '@/components/bee-logo';
 import { CountdownDial } from '@/components/countdown-dial';
 import { FloatingTabBar } from '@/components/floating-tab-bar';
+import { StreakIcon } from '@/components/icons';
+import { WaveBackground } from '@/components/wave-background';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
 import { countdownToWindowStart, formatClock, repeatSummary } from '@/lib/alarm-utils';
 import { useAlarmDraft } from '@/lib/alarm-draft-context';
@@ -43,61 +46,74 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.screen}>
+      <WaveBackground />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
-          <Text style={styles.h1}>BuzzBee</Text>
-          {streak > 0 && (
-            <View style={styles.streak}>
-              <Text style={styles.streakText}>🔥 {streak}</Text>
-            </View>
-          )}
-        </View>
-
-        {primary ? (
-          <View style={styles.hero}>
-            <CountdownDial {...countdownToWindowStart(primary)} size={88} />
-            <View style={styles.heroText}>
-              <Text style={styles.heroWindow}>
-                {formatClock(primary.windowStart).value} – {formatClock(primary.windowEnd).value}{' '}
-                {formatClock(primary.windowEnd).ampm}
-              </Text>
-              <Text style={styles.heroRepeat}>{repeatSummary(primary.repeatDays)}</Text>
+          <View>
+            <Text style={styles.eyebrow}>Good morning</Text>
+            <View style={styles.wordmarkRow}>
+              <BeeLogo size={26} />
+              <Text style={styles.wordmark}>BuzzBee</Text>
             </View>
           </View>
-        ) : (
-          <View style={styles.hero}>
-            <Text style={styles.emptyHero}>No alarms yet — tap + to add your first Smart Wake alarm.</Text>
+          <View style={styles.streak}>
+            <StreakIcon size={12} />
+            <Text style={styles.streakText}>{streak}</Text>
           </View>
-        )}
-
-        <View style={styles.listHeader}>
-          <Text style={styles.sectionLabel}>Your Alarms</Text>
-          {alarms.length > 0 && (
-            <Text style={styles.listHint}>Long-press a card to test-ring it</Text>
-          )}
         </View>
 
-        <FlatList
-          data={alarms}
-          keyExtractor={(a) => a.id}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <AlarmCard
-              alarm={item}
-              onPress={() => {
-                startDraft(item);
-                router.push('/add-edit');
-              }}
-              onToggle={(next) => handleToggle(item, next)}
-              onLongPress={() =>
-                router.push({
-                  pathname: '/ringing',
-                  params: { alarmId: item.id, triggeredBy: 'hard-deadline' },
-                })
-              }
-            />
+        <ScrollView contentContainerStyle={styles.content}>
+          {primary ? (
+            <View style={styles.hero}>
+              <View style={styles.heroGlow} />
+              <CountdownDial {...countdownToWindowStart(primary)} size={92} />
+              <View style={styles.heroText}>
+                <Text style={styles.heroLabel}>Smart Wake begins in</Text>
+                <Text style={styles.heroRange}>
+                  {formatClock(primary.windowStart).value}–{formatClock(primary.windowEnd).value}{' '}
+                  {formatClock(primary.windowEnd).ampm}
+                </Text>
+                <Text style={styles.heroSub}>{repeatSummary(primary.repeatDays)}</Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.hero}>
+              <Text style={styles.emptyHero}>No alarms yet — tap + to add your first Smart Wake alarm.</Text>
+            </View>
           )}
-        />
+
+          <View style={styles.sectionRow}>
+            <Text style={styles.sectionTitle}>Your Alarms</Text>
+            <View style={styles.kebab}>
+              <View style={styles.kebabDot} />
+              <View style={styles.kebabDot} />
+              <View style={styles.kebabDot} />
+            </View>
+          </View>
+
+          <FlatList
+            data={alarms}
+            keyExtractor={(a) => a.id}
+            contentContainerStyle={styles.list}
+            scrollEnabled={false}
+            renderItem={({ item }) => (
+              <AlarmCard
+                alarm={item}
+                onPress={() => {
+                  startDraft(item);
+                  router.push('/add-edit');
+                }}
+                onToggle={(next) => handleToggle(item, next)}
+                onLongPress={() =>
+                  router.push({
+                    pathname: '/ringing',
+                    params: { alarmId: item.id, triggeredBy: 'hard-deadline' },
+                  })
+                }
+              />
+            )}
+          />
+        </ScrollView>
       </SafeAreaView>
       <FloatingTabBar />
     </View>
@@ -124,21 +140,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xxl,
     paddingTop: Spacing.lg,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
   },
-  h1: { fontFamily: Fonts.extraBold, fontSize: 26, color: Colors.ink },
+  eyebrow: { fontFamily: Fonts.bold, fontSize: 12.5, color: Colors.inkFaint },
+  wordmarkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  wordmark: { fontFamily: Fonts.extraBold, fontSize: 20, color: Colors.ink },
   streak: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: Colors.cardBg,
     borderRadius: Radii.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
     ...Shadows.card,
   },
-  streakText: { fontFamily: Fonts.bold, fontSize: 12, color: Colors.ink },
+  streakText: { fontFamily: Fonts.extraBold, fontSize: 13.5, color: Colors.ink },
+  content: { flex: 1, paddingHorizontal: Spacing.xxl, paddingTop: Spacing.md },
   hero: {
-    marginHorizontal: Spacing.xxl,
-    marginTop: Spacing.lg,
+    position: 'relative',
+    overflow: 'hidden',
     backgroundColor: Colors.cardBg,
     borderRadius: Radii.xl,
     padding: Spacing.xl,
@@ -147,30 +169,37 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
     ...Shadows.card,
   },
-  heroText: { flex: 1, minWidth: 0 },
-  heroWindow: { fontFamily: Fonts.extraBold, fontSize: 17, color: Colors.ink },
-  heroRepeat: { fontFamily: Fonts.semiBold, fontSize: 13, color: Colors.inkFaint, marginTop: 2 },
-  emptyHero: { fontFamily: Fonts.semiBold, fontSize: 14, color: Colors.inkFaint, lineHeight: 20 },
-  listHeader: {
-    paddingHorizontal: Spacing.xxl,
-    marginTop: Spacing.xl,
-    marginBottom: Spacing.sm,
+  heroGlow: {
+    position: 'absolute',
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: Colors.accent + '33',
+    top: -70,
+    right: -60,
   },
-  sectionLabel: {
-    fontFamily: Fonts.bold,
-    fontSize: 12,
+  heroText: { flex: 1, minWidth: 0 },
+  heroLabel: {
+    fontFamily: Fonts.extraBold,
+    fontSize: 11,
     color: Colors.inkFaint,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 0.5,
   },
-  listHint: {
-    fontFamily: Fonts.medium,
-    fontSize: 11.5,
-    color: Colors.inkFaint,
-    marginTop: 3,
+  heroRange: { fontFamily: Fonts.extraBold, fontSize: 19, color: Colors.ink, marginTop: 5 },
+  heroSub: { fontFamily: Fonts.bold, fontSize: 12.5, color: Colors.inkSoft, marginTop: 4 },
+  emptyHero: { fontFamily: Fonts.semiBold, fontSize: 14, color: Colors.inkFaint, lineHeight: 20 },
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing.xxl,
+    marginBottom: Spacing.md,
   },
+  sectionTitle: { fontFamily: Fonts.extraBold, fontSize: 15, color: Colors.ink },
+  kebab: { flexDirection: 'row', gap: 3, padding: 6 },
+  kebabDot: { width: 3.5, height: 3.5, borderRadius: 2, backgroundColor: Colors.inkFaint },
   list: {
-    paddingHorizontal: Spacing.xxl,
     paddingBottom: 140,
     gap: Spacing.md,
   },

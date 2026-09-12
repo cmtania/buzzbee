@@ -43,7 +43,10 @@ export default function RepeatScreen() {
   }
 
   return (
-    <OnboardingScreen step={4} title="How often?" onContinue={() => router.push('/onboarding/permissions')}>
+    <OnboardingScreen
+      step={4}
+      title="When should this repeat?"
+      onContinue={() => router.push('/onboarding/permissions')}>
       <View style={styles.days}>
         {ALL_DAYS.map((dow) => {
           const active = draft.repeatDays.includes(dow);

@@ -5,9 +5,9 @@ import { Accelerometer } from 'expo-sensors';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Path, Rect } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
-import { BackspaceIcon, TapIcon as TapGlyph } from '@/components/icons';
+import { BackspaceIcon, WaveformIcon } from '@/components/icons';
 import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
 import { useMicMetering } from '@/hooks/use-mic-metering';
 import { addWakeEvent, getAlarm, getSettings } from '@/lib/db';
@@ -32,6 +32,23 @@ const MIC_MISSIONS: DismissMethod[] = ['clap', 'buzz'];
 // the other thresholds in this file — needs real-room calibration.
 const AMBIENT_ACTIVE_THRESHOLD_DB = -28;
 const AMBIENT_CHECK_MS = 1200;
+
+// "<Verb> to dismiss" pill-eyebrow copy, per design/Ringing*.dc.html.
+const MISSION_VERBS: Record<DismissMethod, string> = {
+  math: 'Solve to dismiss',
+  clap: 'Clap to dismiss',
+  shake: 'Shake to dismiss',
+  buzz: 'Buzz to dismiss',
+  tap: 'Tap to dismiss',
+  random: 'Dismiss',
+};
+
+function minutesAheadOfDeadline(alarm: Alarm, now: Date): number {
+  const [hh, mm] = alarm.windowEnd.split(':').map(Number);
+  const deadline = new Date(now);
+  deadline.setHours(hh, mm, 0, 0);
+  return Math.max(0, Math.round((deadline.getTime() - now.getTime()) / 60000));
+}
 
 export default function RingingScreen() {
   const router = useRouter();
@@ -108,6 +125,7 @@ export default function RingingScreen() {
   }
 
   const clockLabel = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const [clockValue, clockAmpm] = clockLabel.split(' ');
 
   // The mic-based missions (Clap/Buzz) need a clean signal to count against —
   // a blaring alarm loop would trigger false positives on their own
@@ -118,34 +136,42 @@ export default function RingingScreen() {
   const shouldPlaySound =
     ambientCheckDone && !!alarm && !!effectiveMission && !MIC_MISSIONS.includes(effectiveMission);
 
+  let statusText = 'Deadline reached';
+  if (ambientCheckDone && roomActive) {
+    statusText = "Sounds like you're already up";
+  } else if (params.triggeredBy === 'smart-detection') {
+    statusText = alarm
+      ? `Light sleep detected · ${minutesAheadOfDeadline(alarm, now)} min ahead`
+      : 'Light sleep detected';
+  }
+
   return (
     <View style={styles.screen}>
       {shouldPlaySound && <AlarmSoundLoop soundName={alarm!.sound} />}
       <WaveBackground />
       <SafeAreaView style={styles.safeArea}>
-        <Text style={styles.clock}>{clockLabel}</Text>
-        <View style={styles.statusPill}>
-          <Text style={styles.statusText}>
-            {ambientCheckDone && roomActive
-              ? "Sounds like you're already up"
-              : params.triggeredBy === 'smart-detection'
-                ? 'Light sleep detected'
-                : 'Deadline reached'}
+        <View style={styles.top}>
+          <Text style={styles.clock}>
+            {clockValue}
+            <Text style={styles.ampm}> {clockAmpm}</Text>
           </Text>
-        </View>
-
-        {effectiveMission && ambientCheckDone && (
-          <View style={styles.eyebrow}>
-            <Text style={styles.eyebrowText}>{missionLabel(effectiveMission)}</Text>
+          <View style={styles.statusPill}>
+            <WaveformIcon size={14} color={Colors.accentDeep} />
+            <Text style={styles.statusText}>{statusText}</Text>
           </View>
-        )}
+        </View>
 
         <View style={styles.missionArea}>
           {needsAmbientCheck && !ambientCheckDone && (
             <>
               <AmbientPreCheck onResult={setRoomActive} />
-              <Text style={styles.shakeHint}>Listening for room noise…</Text>
+              <Text style={styles.hint}>Listening for room noise…</Text>
             </>
+          )}
+          {ambientCheckDone && effectiveMission && (
+            <View style={styles.eyebrow}>
+              <Text style={styles.eyebrowText}>{MISSION_VERBS[effectiveMission]}</Text>
+            </View>
           )}
           {ambientCheckDone && effectiveMission === 'math' && <MathMission onSolved={dismiss} />}
           {ambientCheckDone && effectiveMission === 'tap' && <TapMission onComplete={dismiss} />}
@@ -158,6 +184,8 @@ export default function RingingScreen() {
             </Pressable>
           )}
         </View>
+
+        <Text style={styles.caption}>Snoozing is disabled — finish the mission to dismiss.</Text>
       </SafeAreaView>
     </View>
   );
@@ -216,12 +244,20 @@ function ProgressBar({ progress }: { progress: number }) {
   );
 }
 
+function Counter({ count, target }: { count: number; target: number }) {
+  return (
+    <Text style={styles.counter}>
+      {count}
+      <Text style={styles.counterTarget}>/{target}</Text>
+    </Text>
+  );
+}
+
 function MathMission({ onSolved }: { onSolved: () => void }) {
   const problem = useMemo(() => {
-    const a = 3 + Math.floor(Math.random() * 15);
-    const b = 2 + Math.floor(Math.random() * 12);
-    const useAdd = Math.random() > 0.5;
-    return { a, b, op: useAdd ? '+' : '-', answer: useAdd ? a + b : a - b };
+    const a = 2 + Math.floor(Math.random() * 8); // 2..9
+    const b = 2 + Math.floor(Math.random() * 8); // 2..9
+    return { a, b, answer: a * b };
   }, []);
   const [input, setInput] = useState('');
   const [wrong, setWrong] = useState(false);
@@ -246,54 +282,61 @@ function MathMission({ onSolved }: { onSolved: () => void }) {
   return (
     <View style={styles.mathWrap}>
       <Text style={styles.equation}>
-        {problem.a} {problem.op} {problem.b} = ?
+        {problem.a} × {problem.b} = ?
       </Text>
       <View style={[styles.inputDisplay, wrong && styles.inputDisplayWrong]}>
-        <Text style={styles.inputText}>{input || 'Enter answer'}</Text>
+        <Text style={input ? styles.inputText : styles.inputPlaceholder}>
+          {input || 'Enter answer'}
+        </Text>
       </View>
       <View style={styles.keypad}>
-        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '0', 'back'].map((key) => (
+        {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'ghost', '0', 'back'].map((key, i) => (
           <Pressable
-            key={key}
-            style={[styles.key, key === '-' && styles.keyGhost]}
+            key={i}
+            style={[styles.key, key === 'ghost' && styles.keyGhost]}
+            disabled={key === 'ghost'}
             onPress={() => press(key)}>
             {key === 'back' ? (
               <BackspaceIcon size={22} />
-            ) : (
+            ) : key === 'ghost' ? null : (
               <Text style={styles.keyText}>{key}</Text>
             )}
           </Pressable>
         ))}
       </View>
+      <Text style={styles.hint}>Type the answer to dismiss.</Text>
     </View>
   );
 }
 
 function TapMission({ onComplete }: { onComplete: () => void }) {
   const [count, setCount] = useState(0);
+  const remaining = TAP_TARGET - count;
   return (
     <View style={styles.centerWrap}>
-      <Text style={styles.counter}>
-        {count}
-        <Text style={styles.counterTarget}>/{TAP_TARGET}</Text>
-      </Text>
+      <Counter count={count} target={TAP_TARGET} />
       <ProgressBar progress={count / TAP_TARGET} />
       <Pressable
-        style={styles.tapButton}
+        style={styles.tapTarget}
         onPress={() => {
           const next = count + 1;
           setCount(next);
           if (next >= TAP_TARGET) onComplete();
         }}>
-        <TapGlyph size={40} color={Colors.accentDeep} />
-        <Text style={styles.tapLabel}>TAP</Text>
+        <View style={[styles.ring, styles.ringOuter]} />
+        <View style={[styles.ring, styles.ringInner]} />
+        <View style={styles.tapCore}>
+          <View style={styles.tapDot} />
+        </View>
       </Pressable>
+      <Text style={styles.hint}>{remaining} more taps — almost there!</Text>
     </View>
   );
 }
 
 function ShakeMission({ onComplete }: { onComplete: () => void }) {
   const [count, setCount] = useState(0);
+  const remaining = SHAKE_TARGET - count;
   const lastShake = useRef(0);
   const wasAbove = useRef(false);
 
@@ -321,12 +364,10 @@ function ShakeMission({ onComplete }: { onComplete: () => void }) {
 
   return (
     <View style={styles.centerWrap}>
-      <Text style={styles.counter}>
-        {count}
-        <Text style={styles.counterTarget}>/{SHAKE_TARGET}</Text>
-      </Text>
+      <Counter count={count} target={SHAKE_TARGET} />
       <ProgressBar progress={count / SHAKE_TARGET} />
-      <Text style={styles.shakeHint}>Shake your phone!</Text>
+      <ShakeArt />
+      <Text style={styles.hint}>Keep shaking — {remaining} to go!</Text>
     </View>
   );
 }
@@ -334,6 +375,7 @@ function ShakeMission({ onComplete }: { onComplete: () => void }) {
 function ClapMission({ onComplete }: { onComplete: () => void }) {
   const { metering, error } = useMicMetering();
   const [count, setCount] = useState(0);
+  const remaining = CLAP_TARGET - count;
   const wasAbove = useRef(false);
   const lastCountAt = useRef(0);
 
@@ -358,12 +400,10 @@ function ClapMission({ onComplete }: { onComplete: () => void }) {
 
   return (
     <View style={styles.centerWrap}>
-      <Text style={styles.counter}>
-        {count}
-        <Text style={styles.counterTarget}>/{CLAP_TARGET}</Text>
-      </Text>
+      <Counter count={count} target={CLAP_TARGET} />
       <ProgressBar progress={count / CLAP_TARGET} />
-      <Text style={styles.shakeHint}>Clap your hands!</Text>
+      <ClapBars count={count} />
+      <Text style={styles.hint}>Listening for claps — {remaining} to go!</Text>
     </View>
   );
 }
@@ -371,6 +411,7 @@ function ClapMission({ onComplete }: { onComplete: () => void }) {
 function BuzzMission({ onComplete }: { onComplete: () => void }) {
   const { metering, error } = useMicMetering();
   const [count, setCount] = useState(0);
+  const remaining = BUZZ_TARGET - count;
   const aboveSince = useRef<number | null>(null);
   const cooldownUntil = useRef(0);
   const countedThisBurst = useRef(false);
@@ -408,12 +449,10 @@ function BuzzMission({ onComplete }: { onComplete: () => void }) {
 
   return (
     <View style={styles.centerWrap}>
-      <Text style={styles.counter}>
-        {count}
-        <Text style={styles.counterTarget}>/{BUZZ_TARGET}</Text>
-      </Text>
+      <Counter count={count} target={BUZZ_TARGET} />
       <ProgressBar progress={count / BUZZ_TARGET} />
-      <Text style={styles.shakeHint}>Buzzzzz into the mic!</Text>
+      <BuzzArt />
+      <Text style={styles.hint}>Make a long "bzzzzz" — {remaining} to go!</Text>
     </View>
   );
 }
@@ -438,6 +477,53 @@ function MicPermissionFallback({
   );
 }
 
+function ShakeArt() {
+  return (
+    <Svg width={230} height={120} viewBox="0 0 230 120" fill="none">
+      <Path d="M66 40 Q46 60 66 80" stroke="#2B2420" strokeWidth={4.5} strokeLinecap="round" opacity={0.55} />
+      <Path d="M42 26 Q14 60 42 94" stroke="#2B2420" strokeWidth={4.5} strokeLinecap="round" opacity={0.3} />
+      <Path d="M164 40 Q184 60 164 80" stroke="#2B2420" strokeWidth={4.5} strokeLinecap="round" opacity={0.55} />
+      <Path d="M188 26 Q216 60 188 94" stroke="#2B2420" strokeWidth={4.5} strokeLinecap="round" opacity={0.3} />
+      <Rect x="93" y="12" width={44} height={96} rx={12} fill="#fff" stroke="#2B2420" strokeWidth={4.5} transform="rotate(-13 115 60)" />
+      <Rect x="101" y="24" width={28} height={66} rx={6} fill={Colors.accent} opacity={0.4} transform="rotate(-13 115 60)" />
+    </Svg>
+  );
+}
+
+function ClapBars({ count }: { count: number }) {
+  const heights = [24, 48, 80, 58, 92, 42, 64, 30];
+  const activeBars = Math.round((count / CLAP_TARGET) * heights.length);
+  return (
+    <View style={styles.bars}>
+      {heights.map((h, i) => (
+        <View
+          key={i}
+          style={[styles.bar, { height: h }, i >= activeBars && styles.barDim]}
+        />
+      ))}
+    </View>
+  );
+}
+
+function BuzzArt() {
+  return (
+    <Svg width={260} height={96} viewBox="0 0 260 96" fill="none">
+      <Defs>
+        <LinearGradient id="buzzGrad" x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0%" stopColor={Colors.accentDeep} />
+          <Stop offset="100%" stopColor="#F6D488" />
+        </LinearGradient>
+      </Defs>
+      <Path
+        d="M8 48 C16 16 26 16 34 48 C42 78 52 78 60 48 C68 8 78 8 86 48 C94 86 104 86 112 48 C120 12 130 12 138 48 C146 82 156 82 164 48 C172 20 182 20 190 48 C198 74 208 74 216 48 C224 28 234 28 242 48 C248 60 253 60 258 48"
+        stroke="url(#buzzGrad)"
+        strokeWidth={6}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
 function WaveBackground() {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -453,82 +539,102 @@ function WaveBackground() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.bg },
-  safeArea: { flex: 1, alignItems: 'center', paddingTop: Spacing.xxxl },
-  clock: { fontFamily: Fonts.extraBold, fontSize: 56, color: '#fff' },
+  screen: { flex: 1, backgroundColor: '#f0f0f0' },
+  safeArea: { flex: 1, alignItems: 'center' },
+  top: { alignItems: 'center', paddingTop: Spacing.xxxl },
+  clock: { fontFamily: Fonts.extraBold, fontSize: 64, color: '#fff' },
+  ampm: { fontFamily: Fonts.bold, fontSize: 20, color: '#fff', opacity: 0.85 },
   statusPill: {
     marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: '#fff',
     borderRadius: Radii.pill,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
+    shadowColor: '#2B2420',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
-  statusText: { fontFamily: Fonts.extraBold, fontSize: 13, color: Colors.accentDeep },
+  statusText: { fontFamily: Fonts.extraBold, fontSize: 11.5, color: Colors.accentDeep },
   eyebrow: {
-    marginTop: 28,
-    backgroundColor: Colors.ink,
+    backgroundColor: Colors.accent + '33',
     borderRadius: Radii.pill,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
   },
   eyebrowText: {
     fontFamily: Fonts.extraBold,
-    fontSize: 12,
-    color: '#fff',
+    fontSize: 14,
+    color: Colors.accentDeep,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
   },
-  missionArea: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center', padding: Spacing.xxl },
-  centerWrap: { width: '100%', alignItems: 'center', gap: 16 },
-  counter: { fontFamily: Fonts.extraBold, fontSize: 64, color: Colors.ink },
-  counterTarget: { fontFamily: Fonts.bold, fontSize: 28, color: Colors.inkFaint },
+  missionArea: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'space-evenly',
+    paddingHorizontal: Spacing.xxl,
+    paddingVertical: Spacing.xl,
+  },
+  centerWrap: { width: '100%', alignItems: 'center', gap: 18 },
+  counter: { fontFamily: Fonts.extraBold, fontSize: 76, color: Colors.accentDeep, lineHeight: 80 },
+  counterTarget: { fontFamily: Fonts.bold, fontSize: 22, color: Colors.inkFaint },
   progressTrack: {
     width: '100%',
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: 'rgba(255,255,255,0.6)',
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#F1E7D3',
     overflow: 'hidden',
   },
-  progressFill: { height: '100%', backgroundColor: Colors.accentDeep, borderRadius: 5 },
-  tapButton: {
-    marginTop: 20,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: '#fff',
+  progressFill: { height: '100%', backgroundColor: Colors.accentDeep, borderRadius: 8 },
+  tapTarget: { width: 150, height: 150, alignItems: 'center', justifyContent: 'center' },
+  ring: { position: 'absolute', borderRadius: 999, borderWidth: 3, borderColor: Colors.accent },
+  ringOuter: { width: 150, height: 150, opacity: 0.25 },
+  ringInner: { width: 114, height: 114, opacity: 0.5 },
+  tapCore: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: Colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
+    shadowColor: Colors.accentDeep,
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
   },
-  tapLabel: { fontFamily: Fonts.extraBold, fontSize: 13, color: Colors.accentDeep, letterSpacing: 1 },
-  shakeHint: { fontFamily: Fonts.bold, fontSize: 15, color: Colors.ink },
+  tapDot: { width: 25, height: 25, borderRadius: 13, backgroundColor: '#fff' },
+  hint: { fontFamily: Fonts.extraBold, fontSize: 20, color: Colors.ink, textAlign: 'center', lineHeight: 26 },
   mathWrap: { width: '100%', alignItems: 'center', gap: 16 },
   equation: { fontFamily: Fonts.extraBold, fontSize: 40, color: Colors.ink },
   inputDisplay: {
     width: '100%',
-    backgroundColor: '#fff',
+    backgroundColor: '#F8EFDC',
+    borderWidth: 2,
+    borderColor: '#F1E1BE',
     borderRadius: Radii.lg,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
   },
-  inputDisplayWrong: { backgroundColor: '#FBDADA' },
-  inputText: { fontFamily: Fonts.extraBold, fontSize: 22, color: Colors.ink },
-  keypad: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between' },
+  inputDisplayWrong: { backgroundColor: '#FBDADA', borderColor: '#F0B8B8' },
+  inputText: { fontFamily: Fonts.extraBold, fontSize: 24, color: Colors.ink, letterSpacing: 1 },
+  inputPlaceholder: { fontFamily: Fonts.extraBold, fontSize: 24, color: '#C9B98F', letterSpacing: 1 },
+  keypad: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' },
   key: {
-    width: '30%',
-    height: 56,
-    borderRadius: Radii.md,
-    backgroundColor: '#fff',
+    width: '31%',
+    height: 46,
+    borderRadius: Radii.sm,
+    backgroundColor: '#F8EFDC',
     alignItems: 'center',
     justifyContent: 'center',
   },
   keyGhost: { backgroundColor: 'transparent' },
-  keyText: { fontFamily: Fonts.extraBold, fontSize: 22, color: Colors.ink },
+  keyText: { fontFamily: Fonts.extraBold, fontSize: 18, color: Colors.ink },
   comingSoonText: {
     fontFamily: Fonts.semiBold,
     fontSize: 14,
@@ -545,4 +651,16 @@ const styles = StyleSheet.create({
     borderRadius: Radii.lg,
   },
   fallbackDismissText: { fontFamily: Fonts.extraBold, fontSize: 14, color: '#fff' },
+  bars: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 10, height: 100 },
+  bar: { width: 15, borderRadius: 999, backgroundColor: Colors.accent },
+  barDim: { backgroundColor: '#F1E7D3' },
+  caption: {
+    fontFamily: Fonts.bold,
+    fontSize: 12,
+    color: Colors.ink,
+    opacity: 0.85,
+    textAlign: 'center',
+    paddingHorizontal: 40,
+    paddingBottom: 20,
+  },
 });

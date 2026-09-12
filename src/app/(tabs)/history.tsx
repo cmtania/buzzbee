@@ -8,7 +8,8 @@ import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
 import { getRecentWakeEvents } from '@/lib/db';
 import { WakeEvent } from '@/lib/types';
 
-const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MAX_EARLY_MIN = 30; // scale cap for positioning the dot along the track
 
 export default function HistoryScreen() {
   const [events, setEvents] = useState<WakeEvent[]>([]);
@@ -26,45 +27,56 @@ export default function HistoryScreen() {
     <View style={styles.screen}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
+          <Text style={styles.eyebrow}>Last 7 days</Text>
           <Text style={styles.h1}>Wake History</Text>
         </View>
 
         <ScrollView contentContainerStyle={styles.body}>
-          <View style={styles.card}>
-            <Text style={styles.sectionLabel}>Last 7 days</Text>
-            <View style={styles.chartRow}>
-              {last7.map((day) => (
-                <View key={day.key} style={styles.chartCol}>
-                  <View style={styles.trackLine} />
-                  <View
-                    style={[
-                      styles.dot,
-                      day.event
-                        ? day.event.triggeredBy === 'smart-detection'
-                          ? styles.dotSmart
-                          : styles.dotDeadline
-                        : styles.dotEmpty,
-                    ]}
-                  />
-                  <Text style={styles.dayLabel}>{day.label}</Text>
-                </View>
-              ))}
+          <View style={styles.insightCard}>
+            <Text style={styles.buzzTag}>Buzz says</Text>
+            <Text style={styles.insight}>{insight}</Text>
+          </View>
+
+          <View style={styles.chartCard}>
+            <Text style={styles.chartTitle}>Wake time vs. deadline</Text>
+            <View style={styles.axisCaps}>
+              <Text style={styles.axisCapText}>Window start</Text>
+              <Text style={styles.axisCapText}>Deadline</Text>
             </View>
+
+            {last7.map((day) => (
+              <View key={day.key} style={styles.chartRow}>
+                <Text style={styles.dayLabel}>{day.label}</Text>
+                <View style={styles.track}>
+                  {day.event && (
+                    <View
+                      style={[
+                        styles.dot,
+                        {
+                          left: `${day.leftPct}%`,
+                          backgroundColor:
+                            day.event.triggeredBy === 'smart-detection'
+                              ? Colors.accent
+                              : Colors.inkFaint,
+                        },
+                      ]}
+                    />
+                  )}
+                </View>
+                <Text style={styles.value}>{day.valueLabel}</Text>
+              </View>
+            ))}
+
             <View style={styles.legendRow}>
               <View style={styles.legendItem}>
-                <View style={[styles.legendDot, styles.dotSmart]} />
+                <View style={[styles.legendDot, { backgroundColor: Colors.accent }]} />
                 <Text style={styles.legendText}>Smart wake</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendDot, styles.dotDeadline]} />
-                <Text style={styles.legendText}>Deadline</Text>
+                <View style={[styles.legendDot, { backgroundColor: Colors.inkFaint }]} />
+                <Text style={styles.legendText}>Deadline reached</Text>
               </View>
             </View>
-          </View>
-
-          <View style={styles.card}>
-            <Text style={styles.buzzTag}>Buzz says</Text>
-            <Text style={styles.insight}>{insight}</Text>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -75,13 +87,40 @@ export default function HistoryScreen() {
 
 function buildLast7Days(events: WakeEvent[]) {
   const byDate = new Map(events.map((e) => [e.date, e]));
-  const days: { key: string; label: string; event?: WakeEvent }[] = [];
+  const days: {
+    key: string;
+    label: string;
+    event?: WakeEvent;
+    leftPct: number;
+    valueLabel: string;
+  }[] = [];
   const today = new Date();
   for (let i = 6; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
     const key = d.toISOString().slice(0, 10);
-    days.push({ key, label: DAY_LABELS[d.getDay()], event: byDate.get(key) });
+    const event = byDate.get(key);
+
+    let leftPct = 100;
+    let valueLabel = '—';
+    if (event) {
+      if (event.triggeredBy === 'smart-detection') {
+        const earlyMin = Math.max(
+          0,
+          Math.round(
+            (new Date(event.scheduledDeadline).getTime() - new Date(event.actualRingTime).getTime()) /
+              60000
+          )
+        );
+        leftPct = (1 - Math.min(earlyMin, MAX_EARLY_MIN) / MAX_EARLY_MIN) * 100;
+        valueLabel = `${earlyMin}m early`;
+      } else {
+        leftPct = 93;
+        valueLabel = 'At deadline';
+      }
+    }
+
+    days.push({ key, label: DAY_LABELS[d.getDay()], event, leftPct, valueLabel });
   }
   return days;
 }
@@ -107,48 +146,74 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.bg },
   safeArea: { flex: 1 },
   header: { paddingHorizontal: Spacing.xxl, paddingTop: Spacing.lg },
-  h1: { fontFamily: Fonts.extraBold, fontSize: 26, color: Colors.ink },
+  eyebrow: { fontFamily: Fonts.semiBold, fontSize: 13, color: Colors.inkFaint },
+  h1: { fontFamily: Fonts.extraBold, fontSize: 26, color: Colors.ink, marginTop: 2 },
   body: { padding: Spacing.xxl, gap: Spacing.lg, paddingBottom: 140 },
-  card: {
+  insightCard: {
+    backgroundColor: Colors.accent + '33',
+    borderRadius: Radii.xl,
+    padding: 16,
+  },
+  chartCard: {
     backgroundColor: Colors.cardBg,
     borderRadius: Radii.xl,
     padding: Spacing.xl,
     ...Shadows.card,
   },
-  sectionLabel: {
+  chartTitle: {
     fontFamily: Fonts.bold,
-    fontSize: 12,
+    fontSize: 13,
     color: Colors.inkFaint,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
-    marginBottom: Spacing.lg,
+    marginBottom: 4,
   },
-  chartRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  chartCol: { alignItems: 'center', gap: 8, width: 28 },
-  trackLine: {
+  axisCaps: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginLeft: 44,
+    marginRight: 60,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  axisCapText: {
+    fontFamily: Fonts.bold,
+    fontSize: 10,
+    color: Colors.inkFaint,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  chartRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  dayLabel: { width: 34, fontFamily: Fonts.bold, fontSize: 12.5, color: Colors.inkSoft },
+  track: { flex: 1, height: 6, borderRadius: 100, backgroundColor: Colors.trackOff },
+  dot: {
     position: 'absolute',
-    top: 9,
-    left: -20,
-    right: -20,
-    height: 2,
-    backgroundColor: Colors.trackOff,
+    top: -4,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 3,
+    borderColor: Colors.cardBg,
   },
-  dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: Colors.cardBg },
-  dotSmart: { backgroundColor: Colors.accent },
-  dotDeadline: { backgroundColor: Colors.inkFaint },
-  dotEmpty: { backgroundColor: Colors.trackOff },
-  dayLabel: { fontFamily: Fonts.bold, fontSize: 11, color: Colors.inkFaint },
-  legendRow: { flexDirection: 'row', gap: Spacing.lg, marginTop: Spacing.lg },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { fontFamily: Fonts.semiBold, fontSize: 11.5, color: Colors.inkFaint },
+  value: { width: 74, fontFamily: Fonts.bold, fontSize: 12, color: Colors.inkFaint, textAlign: 'right' },
+  legendRow: {
+    flexDirection: 'row',
+    gap: Spacing.lg,
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.trackOff,
+  },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  legendDot: { width: 9, height: 9, borderRadius: 4.5 },
+  legendText: { fontFamily: Fonts.medium, fontSize: 12.5, color: Colors.inkSoft },
   buzzTag: {
     fontFamily: Fonts.extraBold,
-    fontSize: 11,
+    fontSize: 10.5,
     color: Colors.accentDeep,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  insight: { fontFamily: Fonts.semiBold, fontSize: 14.5, color: Colors.ink, lineHeight: 21 },
+  insight: { fontFamily: Fonts.bold, fontSize: 13.5, color: Colors.ink, lineHeight: 19 },
 });

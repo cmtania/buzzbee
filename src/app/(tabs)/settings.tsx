@@ -3,8 +3,17 @@ import { ReactNode, useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ChevronRight } from '@/components/icons';
 import { FloatingTabBar } from '@/components/floating-tab-bar';
+import {
+  BellIcon,
+  BuzzIcon,
+  CalendarIcon,
+  ChevronRight,
+  InfoIcon,
+  MicIcon,
+  MoonIcon,
+  StopwatchIcon,
+} from '@/components/icons';
 import { Toggle } from '@/components/toggle';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
 import { getSettings, updateSettings } from '@/lib/db';
@@ -41,6 +50,7 @@ export default function SettingsScreen() {
             <Text style={styles.sectionLabel}>Smart Features</Text>
             <View style={styles.group}>
               <Row
+                icon={<MoonIcon size={16} color={Colors.accentDeep} />}
                 title="Wind-Down Mode"
                 sub={
                   settings.bedtime
@@ -57,6 +67,7 @@ export default function SettingsScreen() {
                 }
               />
               <Row
+                icon={<CalendarIcon size={16} color={Colors.accentDeep} />}
                 title="Calendar Auto-Shift"
                 sub="Checks tomorrow's first event"
                 right={
@@ -67,6 +78,7 @@ export default function SettingsScreen() {
                 }
               />
               <Row
+                icon={<MicIcon size={16} color={Colors.accentDeep} />}
                 title="Ambient Awareness"
                 sub="On-device only, never recorded"
                 right={
@@ -77,6 +89,7 @@ export default function SettingsScreen() {
                 }
               />
               <Row
+                icon={<StopwatchIcon size={16} color={Colors.accentDeep} />}
                 title="Test Smart Wake"
                 sub="See it detect light sleep in under a minute"
                 onPress={() => router.push('/test-smart-wake')}
@@ -88,9 +101,25 @@ export default function SettingsScreen() {
           <View>
             <Text style={styles.sectionLabel}>General</Text>
             <View style={styles.group}>
-              <Row title="Notifications" divider={false} onPress={() => {}} right={<ChevronRight />} />
-              <Row title="Sound & Haptics" onPress={() => {}} right={<ChevronRight />} />
-              <Row title="About BuzzBee" onPress={() => {}} right={<ChevronRight />} />
+              <Row
+                icon={<BellIcon size={16} color={Colors.accentDeep} />}
+                title="Notifications"
+                divider={false}
+                onPress={() => {}}
+                right={<ChevronRight />}
+              />
+              <Row
+                icon={<BuzzIcon size={16} color={Colors.accentDeep} />}
+                title="Sound & Haptics"
+                onPress={() => {}}
+                right={<ChevronRight />}
+              />
+              <Row
+                icon={<InfoIcon size={16} color={Colors.accentDeep} />}
+                title="About BuzzBee"
+                onPress={() => {}}
+                right={<ChevronRight />}
+              />
               <Row
                 title="Replay Onboarding"
                 onPress={async () => {
@@ -109,12 +138,14 @@ export default function SettingsScreen() {
 }
 
 function Row({
+  icon,
   title,
   sub,
   right,
   onPress,
   divider = true,
 }: {
+  icon?: ReactNode;
   title: string;
   sub?: string;
   right: ReactNode;
@@ -124,6 +155,7 @@ function Row({
   const Wrapper = onPress ? Pressable : View;
   return (
     <Wrapper style={[styles.row, divider && styles.rowDivider]} onPress={onPress}>
+      {icon && <View style={styles.rowIcon}>{icon}</View>}
       <View style={styles.rowMain}>
         <Text style={styles.rowTitle}>{title}</Text>
         {sub && <Text style={styles.rowSub}>{sub}</Text>}
@@ -163,6 +195,15 @@ const styles = StyleSheet.create({
   rowDivider: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Colors.trackOff,
+  },
+  rowIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: Colors.accent + '26',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   rowMain: { flex: 1, minWidth: 0 },
   rowTitle: { fontFamily: Fonts.bold, fontSize: 14.5, color: Colors.ink },
