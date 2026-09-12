@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CheckIcon } from '@/components/icons';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
 import { useAlarmDraft } from '@/lib/alarm-draft-context';
-import { SOUND_FILES, SOUND_NAMES, SoundName } from '@/lib/sounds';
+import { safeAudioCall, SOUND_FILES, SOUND_NAMES, SoundName } from '@/lib/sounds';
 
 export default function ChooseSoundScreen() {
   const router = useRouter();
@@ -16,6 +16,11 @@ export default function ChooseSoundScreen() {
 
   function select(name: SoundName) {
     setDraft((d) => ({ ...d, sound: name }));
+  }
+
+  function done() {
+    setPreviewing(null);
+    router.back();
   }
 
   return (
@@ -34,7 +39,7 @@ export default function ChooseSoundScreen() {
               onTogglePreview={() => setPreviewing((p) => (p === name ? null : name))}
             />
           ))}
-          <Pressable style={styles.doneBtn} onPress={() => router.back()}>
+          <Pressable style={styles.doneBtn} onPress={done}>
             <Text style={styles.doneText}>Done</Text>
           </Pressable>
         </SafeAreaView>
@@ -59,15 +64,17 @@ function SoundRow({
   const player = useAudioPlayer(SOUND_FILES[name]);
 
   useEffect(() => {
-    if (previewing) {
-      player.seekTo(0);
-      player.play();
-    } else {
-      player.pause();
-    }
+    safeAudioCall(() => {
+      if (previewing) {
+        player.seekTo(0);
+        player.play();
+      } else {
+        player.pause();
+      }
+    });
   }, [previewing, player]);
 
-  useEffect(() => () => player.pause(), [player]);
+  useEffect(() => () => safeAudioCall(() => player.pause()), [player]);
 
   return (
     <Pressable style={[styles.row, selected && styles.rowSelected]} onPress={onSelect}>

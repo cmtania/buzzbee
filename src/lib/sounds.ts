@@ -20,3 +20,19 @@ export const SOUND_NAMES = Object.keys(SOUND_FILES) as SoundName[];
 export function isSoundName(value: string): value is SoundName {
   return value in SOUND_FILES;
 }
+
+/**
+ * expo-audio's AudioPlayer wraps a native object that can already be torn
+ * down by the time an effect cleanup fires (especially on fast unmount/
+ * navigation) — calling .play()/.pause()/.seekTo() on it then throws
+ * "Unable to find the native shared object associated with given
+ * JavaScript object". These calls are fire-and-forget UI actions, so
+ * swallowing that specific race is safe.
+ */
+export function safeAudioCall(fn: () => void): void {
+  try {
+    fn();
+  } catch {
+    // native player already released — nothing to do
+  }
+}

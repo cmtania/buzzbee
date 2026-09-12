@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { OnboardingScreen } from '@/components/onboarding-screen';
 import { Fonts, Radii, Shadows } from '@/constants/theme';
 import { useAlarmDraft } from '@/lib/alarm-draft-context';
-import { isSoundName, SOUND_FILES } from '@/lib/sounds';
+import { isSoundName, safeAudioCall, SOUND_FILES } from '@/lib/sounds';
 
 const INK = '#2B2420';
 const INK_SOFT = '#6B5D4F';
@@ -23,21 +23,37 @@ export default function RingerCheckScreen() {
 
   useEffect(() => {
     setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
-    player.loop = true;
+    safeAudioCall(() => {
+      player.loop = true;
+    });
     return () => {
-      player.pause();
+      safeAudioCall(() => player.pause());
     };
   }, [player]);
 
   function toggle() {
     if (playing) {
-      player.pause();
+      safeAudioCall(() => player.pause());
       setPlaying(false);
     } else {
-      player.seekTo(0);
-      player.play();
+      safeAudioCall(() => {
+        player.seekTo(0);
+        player.play();
+      });
       setPlaying(true);
     }
+  }
+
+  function handleContinue() {
+    safeAudioCall(() => player.pause());
+    setPlaying(false);
+    router.push('/onboarding/summary');
+  }
+
+  function handleBack() {
+    safeAudioCall(() => player.pause());
+    setPlaying(false);
+    router.back();
   }
 
   return (
@@ -45,7 +61,8 @@ export default function RingerCheckScreen() {
       step={8}
       title="Will you hear it?"
       continueLabel="I'll hear it"
-      onContinue={() => router.push('/onboarding/summary')}>
+      onContinue={handleContinue}
+      onBack={handleBack}>
       <View style={styles.center}>
         <Pressable style={styles.playBtn} onPress={toggle}>
           <View style={playing ? styles.stopIcon : styles.playIconWrap}>

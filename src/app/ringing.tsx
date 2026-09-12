@@ -12,7 +12,7 @@ import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
 import { useMicMetering } from '@/hooks/use-mic-metering';
 import { addWakeEvent, getAlarm, getSettings } from '@/lib/db';
 import { cancelAlarmNotification } from '@/lib/scheduling';
-import { isSoundName, SOUND_FILES } from '@/lib/sounds';
+import { isSoundName, safeAudioCall, SOUND_FILES } from '@/lib/sounds';
 import {
   Alarm,
   AppSettings,
@@ -201,10 +201,12 @@ function AlarmSoundLoop({ soundName }: { soundName: string }) {
       interruptionMode: 'doNotMix',
       shouldPlayInBackground: true,
     }).catch(() => {});
-    player.loop = true;
-    player.play();
+    safeAudioCall(() => {
+      player.loop = true;
+      player.play();
+    });
     return () => {
-      player.pause();
+      safeAudioCall(() => player.pause());
     };
   }, [player]);
 
