@@ -17,7 +17,6 @@ export function AlarmCard({
   onToggle: (next: boolean) => void;
   onLongPress?: () => void;
 }) {
-  const start = formatClock(alarm.windowStart);
   const end = formatClock(alarm.windowEnd);
 
   return (
@@ -33,12 +32,19 @@ export function AlarmCard({
         <Text style={styles.repeatLabel}>
           {repeatSummary(alarm.repeatDays)} · {alarm.smartWakeEnabled ? 'Smart Wake' : 'Fixed time'}
         </Text>
-        <Text style={styles.time}>
-          {start.value}
-          {'–'}
-          {end.value}
-          <Text style={styles.ampm}> {end.ampm}</Text>
-        </Text>
+        {alarm.smartWakeEnabled ? (
+          <Text style={styles.time}>
+            {formatClock(alarm.windowStart).value}
+            {'–'}
+            {end.value}
+            <Text style={styles.ampm}> {end.ampm}</Text>
+          </Text>
+        ) : (
+          <Text style={styles.time}>
+            {end.value}
+            <Text style={styles.ampm}> {end.ampm}</Text>
+          </Text>
+        )}
       </View>
       <Toggle value={alarm.enabled} onChange={onToggle} />
     </Pressable>

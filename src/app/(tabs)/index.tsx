@@ -77,8 +77,9 @@ export default function HomeScreen() {
                   {primary.smartWakeEnabled ? 'Smart Wake begins in' : 'Rings in'}
                 </Text>
                 <Text style={styles.heroRange}>
-                  {formatClock(primary.windowStart).value}–{formatClock(primary.windowEnd).value}{' '}
-                  {formatClock(primary.windowEnd).ampm}
+                  {primary.smartWakeEnabled
+                    ? `${formatClock(primary.windowStart).value}–${formatClock(primary.windowEnd).value} ${formatClock(primary.windowEnd).ampm}`
+                    : `${formatClock(primary.windowEnd).value} ${formatClock(primary.windowEnd).ampm}`}
                 </Text>
                 <Text style={styles.heroSub}>{repeatSummary(primary.repeatDays)}</Text>
               </View>

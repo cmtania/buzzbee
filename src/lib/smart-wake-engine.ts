@@ -4,6 +4,12 @@ import { Alarm } from './types';
 
 export type DetectorHandle = { stop: () => void };
 
+// Fixed-time alarms (Smart Wake off) now store windowStart === windowEnd —
+// a single alarm time, not a real range. isWindowActiveNow needs *some*
+// non-empty span leading up to that instant so the monitor can pick it up
+// as a candidate before the deadline check can ever fire it.
+const FIXED_TIME_LEAD_MIN = 2;
+
 // Tuned empirically for "gentle restlessness" vs. either dead stillness or a
 // deliberate shake — this is a heuristic, not a validated sleep-stage
 // classifier (see PLAN.md's Known Technical Risk section). Needs real
@@ -77,8 +83,11 @@ export function isWindowActiveNow(alarm: Alarm, now: Date = new Date()): boolean
   const minutesNow = now.getHours() * 60 + now.getMinutes();
   const [sh, sm] = alarm.windowStart.split(':').map(Number);
   const [eh, em] = alarm.windowEnd.split(':').map(Number);
-  const startMin = sh * 60 + sm;
+  let startMin = sh * 60 + sm;
   const endMin = eh * 60 + em;
+  if (startMin === endMin) {
+    startMin = (startMin - FIXED_TIME_LEAD_MIN + 1440) % 1440;
+  }
 
   if (startMin <= endMin) {
     return minutesNow >= startMin && minutesNow < endMin;

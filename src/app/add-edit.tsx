@@ -55,35 +55,64 @@ export default function AddEditScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.body}>
-          <View>
-            <Text style={styles.sectionLabel}>Wake window</Text>
-            <View style={styles.timeRow}>
-              <TimeStepper
-                label="Starts"
-                value={draft.windowStart}
-                onChange={(v) => setDraft((d) => ({ ...d, windowStart: v }))}
-              />
-              <View style={styles.timeSep}>
-                <LongArrowRight size={16} color={Colors.inkFaint} />
+          {draft.smartWakeEnabled ? (
+            <View>
+              <Text style={styles.sectionLabel}>Wake window</Text>
+              <View style={styles.timeRow}>
+                <TimeStepper
+                  label="Starts"
+                  value={draft.windowStart}
+                  onChange={(v) => setDraft((d) => ({ ...d, windowStart: v }))}
+                />
+                <View style={styles.timeSep}>
+                  <LongArrowRight size={16} color={Colors.inkFaint} />
+                </View>
+                <TimeStepper
+                  label="Hard deadline"
+                  value={draft.windowEnd}
+                  onChange={(v) => setDraft((d) => ({ ...d, windowEnd: v }))}
+                  deadline
+                />
               </View>
+              <Text style={styles.hint}>
+                BuzzBee rings sometime in this range — never later than the deadline.
+              </Text>
+            </View>
+          ) : (
+            <View>
+              <Text style={styles.sectionLabel}>Alarm time</Text>
               <TimeStepper
-                label="Hard deadline"
+                label="Rings at"
                 value={draft.windowEnd}
-                onChange={(v) => setDraft((d) => ({ ...d, windowEnd: v }))}
-                deadline
+                onChange={(v) => setDraft((d) => ({ ...d, windowStart: v, windowEnd: v }))}
               />
             </View>
-            <Text style={styles.hint}>
-              BuzzBee rings sometime in this range — never later than the deadline.
-            </Text>
-          </View>
+          )}
 
           <View style={styles.rowCard}>
             <View style={styles.smartRow}>
               <Text style={styles.smartLabel}>Smart Wake</Text>
               <Toggle
                 value={draft.smartWakeEnabled}
-                onChange={(v) => setDraft((d) => ({ ...d, smartWakeEnabled: v }))}
+                onChange={(v) =>
+                  setDraft((d) => {
+                    if (v) {
+                      // Turning Smart Wake back on: give it a real window
+                      // instead of a zero-width one collapsed to a point.
+                      if (d.windowStart === d.windowEnd) {
+                        const [h, m] = d.windowEnd.split(':').map(Number);
+                        const startMin = (h * 60 + m - 30 + 1440) % 1440;
+                        const start = `${String(Math.floor(startMin / 60)).padStart(2, '0')}:${String(startMin % 60).padStart(2, '0')}`;
+                        return { ...d, smartWakeEnabled: v, windowStart: start };
+                      }
+                      return { ...d, smartWakeEnabled: v };
+                    }
+                    // Turning it off: a fixed-time alarm is one time, not a
+                    // range — collapse to the deadline so Home shows a
+                    // single time instead of a stale-looking window.
+                    return { ...d, smartWakeEnabled: v, windowStart: d.windowEnd };
+                  })
+                }
               />
             </View>
             <View style={styles.smartExplainer}>
