@@ -13,6 +13,8 @@ import { Alarm } from '@/lib/types';
 
 const CHECK_INTERVAL_MS = 5000;
 
+type Monitored = { alarm: Alarm; detector: DetectorHandle; deadline: Date };
+
 /**
  * Foreground-only alarm monitor (see PLAN.md's Known Technical Risk
  * section — continuous background accelerometer sampling isn't reliable on
@@ -26,7 +28,7 @@ const CHECK_INTERVAL_MS = 5000;
  */
 export function useSmartWakeMonitor() {
   const router = useRouter();
-  const monitored = useRef<{ alarm: Alarm; detector: DetectorHandle } | null>(null);
+  const monitored = useRef<Monitored | null>(null);
   const triggeredToday = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -49,16 +51,12 @@ export function useSmartWakeMonitor() {
       const todayKey = now.toISOString().slice(0, 10);
 
       if (monitored.current) {
-        const deadline = todaysDeadline(monitored.current.alarm, now);
-        console.log(
-          '[smart-wake-monitor] watching',
-          monitored.current.alarm.id,
-          'now',
-          now.toTimeString().slice(0, 8),
-          'deadline',
-          deadline.toTimeString().slice(0, 8)
-        );
-        if (now >= deadline) {
+        // The deadline is frozen at the moment monitoring started (below) —
+        // recomputing it fresh via todaysDeadline() on every tick was the
+        // bug: that helper rolls to tomorrow once `now` passes it, so the
+        // instant the real deadline arrived, the "target" would jump a full
+        // day ahead and `now >= deadline` could never become true again.
+        if (now >= monitored.current.deadline) {
           const alarm = monitored.current.alarm;
           console.log('[smart-wake-monitor] deadline reached — firing ring for', alarm.id);
           monitored.current.detector.stop();
@@ -84,8 +82,8 @@ export function useSmartWakeMonitor() {
         candidate.windowStart,
         '-',
         candidate.windowEnd,
-        'smartWake:',
-        candidate.smartWakeEnabled
+        'deadline',
+        todaysDeadline(candidate, now).toTimeString().slice(0, 8)
       );
 
       // Fixed-time alarms (Smart Wake off) don't get movement detection —
@@ -101,7 +99,7 @@ export function useSmartWakeMonitor() {
             });
           })
         : { stop: () => {} };
-      monitored.current = { alarm: candidate, detector };
+      monitored.current = { alarm: candidate, detector, deadline: todaysDeadline(candidate, now) };
     }, CHECK_INTERVAL_MS);
 
     return () => {
