@@ -1,6 +1,6 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { ReactNode, useCallback, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChevronRight } from '@/components/icons';
@@ -9,8 +9,10 @@ import { Toggle } from '@/components/toggle';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
 import { getSettings, updateSettings } from '@/lib/db';
 import { AppSettings } from '@/lib/types';
+import { rescheduleWindDownNotification } from '@/lib/wind-down-scheduling';
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   useFocusEffect(
@@ -22,6 +24,7 @@ export default function SettingsScreen() {
   async function patch(update: Partial<AppSettings>) {
     const next = await updateSettings(update);
     setSettings(next);
+    if ('windDownEnabled' in update) await rescheduleWindDownNotification(next);
   }
 
   if (!settings) return <View style={styles.screen} />;
@@ -39,8 +42,13 @@ export default function SettingsScreen() {
             <View style={styles.group}>
               <Row
                 title="Wind-Down Mode"
-                sub="Reminder 30 min before bed"
+                sub={
+                  settings.bedtime
+                    ? `Reminder ${settings.windDownOffsetMin} min before ${settings.bedtime} bedtime`
+                    : `Reminder ${settings.windDownOffsetMin} min before bed — tap to set bedtime`
+                }
                 divider={false}
+                onPress={() => router.push('/wind-down-settings')}
                 right={
                   <Toggle
                     value={settings.windDownEnabled}
@@ -71,12 +79,7 @@ export default function SettingsScreen() {
               <Row
                 title="Test Smart Wake"
                 sub="See it detect light sleep in under a minute"
-                onPress={() =>
-                  Alert.alert(
-                    'Coming soon',
-                    'Simulate/Test Mode ships with the Smart Wake engine milestone.'
-                  )
-                }
+                onPress={() => router.push('/test-smart-wake')}
                 right={<ChevronRight />}
               />
             </View>
@@ -88,6 +91,14 @@ export default function SettingsScreen() {
               <Row title="Notifications" divider={false} onPress={() => {}} right={<ChevronRight />} />
               <Row title="Sound & Haptics" onPress={() => {}} right={<ChevronRight />} />
               <Row title="About BuzzBee" onPress={() => {}} right={<ChevronRight />} />
+              <Row
+                title="Replay Onboarding"
+                onPress={async () => {
+                  await updateSettings({ hasOnboarded: false });
+                  router.replace('/onboarding/welcome');
+                }}
+                right={<ChevronRight />}
+              />
             </View>
           </View>
         </ScrollView>

@@ -43,6 +43,12 @@
       "expo-font",
       "expo-sqlite",
       [
+        "expo-calendar",
+        {
+          "calendarPermission": "BuzzBee checks tomorrow's first calendar event so it can suggest shifting your wake window if there's a conflict."
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/images/icon.png",
