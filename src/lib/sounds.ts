@@ -7,6 +7,10 @@ export const SOUND_FILES = {
   'Digital Buzzer': require('../../assets/sounds/digital-buzzer.mp3'),
   'Warning Buzzer': require('../../assets/sounds/warning-buzzer.mp3'),
   'Morning Alarm': require('../../assets/sounds/morning-alarm.mp3'),
+  'Intense Electricity': require('../../assets/sounds/intense-electricity.wav'),
+  'Sound Alert': require('../../assets/sounds/sound-alert.wav'),
+  'Space Shooter': require('../../assets/sounds/space-shooter.wav'),
+  'Vintage Telephone': require('../../assets/sounds/vintage-telephone.wav'),
 } as const;
 
 export type SoundName = keyof typeof SOUND_FILES;
