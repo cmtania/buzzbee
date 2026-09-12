@@ -23,6 +23,7 @@ export type AppSettings = {
   autoShiftTrusted: boolean; // true = auto-apply, false = confirm-first nudge
   ambientAwarenessEnabled: boolean;
   simulateModeEnabled: boolean; // Simulate/Test Mode toggle
+  hasOnboarded: boolean;
 };
 
 export type WakeEvent = {
@@ -68,6 +69,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoShiftTrusted: false,
   ambientAwarenessEnabled: false,
   simulateModeEnabled: false,
+  hasOnboarded: false,
 };
 
 export function newAlarmDraft(): Alarm {

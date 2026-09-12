@@ -39,7 +39,8 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
           calendarAutoShiftEnabled INTEGER NOT NULL,
           autoShiftTrusted INTEGER NOT NULL,
           ambientAwarenessEnabled INTEGER NOT NULL,
-          simulateModeEnabled INTEGER NOT NULL
+          simulateModeEnabled INTEGER NOT NULL,
+          hasOnboarded INTEGER NOT NULL DEFAULT 0
         );
       `);
       const settingsRow = await db.getFirstAsync<{ id: number }>(
@@ -47,8 +48,8 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
       );
       if (!settingsRow) {
         await db.runAsync(
-          `INSERT INTO app_settings (id, windDownEnabled, windDownOffsetMin, bedtime, calendarAutoShiftEnabled, autoShiftTrusted, ambientAwarenessEnabled, simulateModeEnabled)
-           VALUES (1, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO app_settings (id, windDownEnabled, windDownOffsetMin, bedtime, calendarAutoShiftEnabled, autoShiftTrusted, ambientAwarenessEnabled, simulateModeEnabled, hasOnboarded)
+           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             DEFAULT_SETTINGS.windDownEnabled ? 1 : 0,
             DEFAULT_SETTINGS.windDownOffsetMin,
@@ -57,6 +58,7 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
             DEFAULT_SETTINGS.autoShiftTrusted ? 1 : 0,
             DEFAULT_SETTINGS.ambientAwarenessEnabled ? 1 : 0,
             DEFAULT_SETTINGS.simulateModeEnabled ? 1 : 0,
+            DEFAULT_SETTINGS.hasOnboarded ? 1 : 0,
           ]
         );
       }
@@ -160,6 +162,7 @@ export async function getSettings(): Promise<AppSettings> {
     autoShiftTrusted: number;
     ambientAwarenessEnabled: number;
     simulateModeEnabled: number;
+    hasOnboarded: number;
   }>('SELECT * FROM app_settings WHERE id = 1');
   if (!row) return DEFAULT_SETTINGS;
   return {
@@ -170,6 +173,7 @@ export async function getSettings(): Promise<AppSettings> {
     autoShiftTrusted: !!row.autoShiftTrusted,
     ambientAwarenessEnabled: !!row.ambientAwarenessEnabled,
     simulateModeEnabled: !!row.simulateModeEnabled,
+    hasOnboarded: !!row.hasOnboarded,
   };
 }
 
@@ -181,7 +185,7 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
     `UPDATE app_settings SET
        windDownEnabled = ?, windDownOffsetMin = ?, bedtime = ?,
        calendarAutoShiftEnabled = ?, autoShiftTrusted = ?,
-       ambientAwarenessEnabled = ?, simulateModeEnabled = ?
+       ambientAwarenessEnabled = ?, simulateModeEnabled = ?, hasOnboarded = ?
      WHERE id = 1`,
     [
       next.windDownEnabled ? 1 : 0,
@@ -191,6 +195,7 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
       next.autoShiftTrusted ? 1 : 0,
       next.ambientAwarenessEnabled ? 1 : 0,
       next.simulateModeEnabled ? 1 : 0,
+      next.hasOnboarded ? 1 : 0,
     ]
   );
   return next;
