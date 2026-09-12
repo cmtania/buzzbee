@@ -80,7 +80,7 @@ export function newAlarmDraft(): Alarm {
     repeatDays: [1, 2, 3, 4, 5],
     smartWakeEnabled: true,
     dismissMethod: 'shake',
-    sound: 'Honey Chime',
+    sound: 'Classic Alarm',
     enabled: true,
   };
 }

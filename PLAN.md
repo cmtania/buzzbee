@@ -233,20 +233,20 @@ const TAP_TARGET = 100;
 
 ## Milestones
 
-1. **Scaffold + static UI**: Expo project scaffolded at `z:\Git\circa-alarm` (packages installed: sensors, notifications, task-manager, background-task, audio, haptics, keep-awake, linear-gradient, Manrope font — `expo-sqlite` and `expo-calendar` still to be added). ✅
+1. **Scaffold + static UI**: Expo project scaffolded at `z:\Git\buzzbee-alarm` (renamed from `circa-alarm`), all packages installed including `expo-sqlite` and `expo-calendar`. ✅
 2. **Full 11-screen mockup**: Login, Home, Wake History, Settings, Add/Edit, Choose Mission, and 5 Ringing variants — built, reviewed against this plan, and reconciled. ✅
-3. **Smart Wake engine v1**: accelerometer sampling + light-sleep heuristic, foreground-only, plus Simulate/Test Mode (App Store review requirement).
-4. **Alarm scheduling + ringing flow**: local notifications for hard-deadline fallback, ringing screen, all six dismiss missions (resolve Random's exact behavior first).
-5. **Persistence** via `expo-sqlite` + history/insights screen.
-6. **Global settings implementation**: Wind-Down, calendar auto-shift, ambient awareness as app-wide toggles.
-7. **Onboarding flow** implementation.
-8. **Sound assets**: source, license-check, and normalize alarm sounds (see Tech Stack).
-9. **Background hardening**: iOS Critical Alerts/AlarmKit entitlement investigation; Android support as a later milestone.
+3. **Smart Wake engine v1**: accelerometer sampling (rolling-buffer stddev heuristic) + light-sleep detection, foreground-only monitor wired into the root layout, plus a real Simulate/Test Mode screen (Settings → Test Smart Wake). Thresholds are untuned placeholders — real overnight calibration still needed before launch. ✅ (code), ⚠️ (tuning)
+4. **Alarm scheduling + ringing flow**: local hard-deadline notifications, real Ringing screen, all six dismiss missions implemented (Math/Tap/Shake fully local; Clap/Buzz via real mic metering; Random resolved as "fresh pick each time it rings" — flag if a fixed-at-creation behavior is preferred instead). ✅
+5. **Persistence** via `expo-sqlite` (alarms/wake_events/app_settings tables) + a real Wake History screen reading live data. ✅
+6. **Global settings implementation**: Wind-Down (bedtime + offset, real scheduled notification, breathing-animation screen), Calendar auto-shift (real `expo-calendar` read + confirm-first nudge or auto-apply), Ambient awareness (real pre-ring mic check) — all real, all foreground-triggered only (no true background task yet, see Known Technical Risk). ✅
+7. **Onboarding flow** implementation: all 10 real screens, writes into the same Alarm draft/Settings the rest of the app uses, creates a real alarm on completion. First-launch redirect + a Settings "Replay Onboarding" entry for retesting. ✅
+8. **Sound assets**: 4 real tones sourced from Mixkit (free, commercial-use, no-attribution license — see `assets/sounds/SOURCES.md`), wired into real looping playback on the Ringing screen (skipped during Clap/Buzz to protect their mic detection) and a Choose Sound picker with live preview. **Not yet done**: peak-loudness normalization (no `ffmpeg` in the build environment this was built in — needs doing before launch) and native notification-sound bundling (in-app playback is real; the OS notification itself still uses the system default tone, since custom notification sounds require native asset bundling via a config plugin, not just a JS asset).
+9. **Background hardening**: iOS Critical Alerts/AlarmKit entitlement investigation; Android support as a later milestone. Not started.
 10. **Future**: Pro tier + Supabase-backed group sharing (see Future section above) — not part of MVP.
 
 ## Open questions for you
 
-- **Random mission behavior** (new): does Random pick a fresh mission each time the alarm rings, or is it fixed once at alarm-creation time? Needs a decision before the Ringing-flow milestone.
-- Confirm folder rename from `circa-alarm` to `buzzbee-alarm` — purely housekeeping, not urgent.
+- **Random mission behavior**: implemented as "fresh pick each time the alarm rings" (simplest to build, no extra state needed) — flag if you'd rather it be fixed once at alarm-creation time instead; easy to change in `ringing.tsx`.
+- ~~Confirm folder rename from `circa-alarm` to `buzzbee-alarm`~~ — done.
 - iOS App Store review requires disclosing background sensor (motion, mic) and calendar use in the privacy policy — fine for later, just flagging it exists.
 - Trademark check: worth a quick search on "BuzzBee" beyond the App Store (USPTO / general web) before any real branding investment, given how the "Buzz" naming conflict was discovered this late — cheap insurance.

@@ -1,3 +1,4 @@
+import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Accelerometer } from 'expo-sensors';
@@ -8,10 +9,13 @@ import Svg, { Path, Rect } from 'react-native-svg';
 
 import { BackspaceIcon, TapIcon as TapGlyph } from '@/components/icons';
 import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
-import { addWakeEvent, getAlarm } from '@/lib/db';
+import { useMicMetering } from '@/hooks/use-mic-metering';
+import { addWakeEvent, getAlarm, getSettings } from '@/lib/db';
 import { cancelAlarmNotification } from '@/lib/scheduling';
+import { isSoundName, SOUND_FILES } from '@/lib/sounds';
 import {
   Alarm,
+  AppSettings,
   BUZZ_TARGET,
   CLAP_TARGET,
   DismissMethod,
@@ -23,12 +27,20 @@ import { MISSION_ORDER, missionLabel } from '@/lib/mission-meta';
 
 const RANDOMIZABLE: DismissMethod[] = MISSION_ORDER.filter((m) => m !== 'random');
 const MIC_MISSIONS: DismissMethod[] = ['clap', 'buzz'];
+// A quiet bedroom typically reads well below this; a room with the TV on,
+// a partner talking, etc. tends to sit above it. Untuned placeholder like
+// the other thresholds in this file — needs real-room calibration.
+const AMBIENT_ACTIVE_THRESHOLD_DB = -28;
+const AMBIENT_CHECK_MS = 1200;
 
 export default function RingingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ alarmId?: string; triggeredBy?: string }>();
   const [alarm, setAlarm] = useState<Alarm | null>(null);
   const [effectiveMission, setEffectiveMission] = useState<DismissMethod | null>(null);
+  const [alarmLoaded, setAlarmLoaded] = useState(!params.alarmId);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [roomActive, setRoomActive] = useState<boolean | null>(null);
   const startedAt = useRef(Date.now());
   const [now, setNow] = useState(new Date());
 
@@ -38,21 +50,43 @@ export default function RingingScreen() {
   }, []);
 
   useEffect(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    getSettings().then((s) => setSettings(s));
   }, []);
 
   useEffect(() => {
     if (!params.alarmId) return;
     getAlarm(params.alarmId).then((a) => {
       setAlarm(a);
-      if (!a) return;
-      setEffectiveMission(
-        a.dismissMethod === 'random'
-          ? RANDOMIZABLE[Math.floor(Math.random() * RANDOMIZABLE.length)]
-          : a.dismissMethod
-      );
+      if (a) {
+        setEffectiveMission(
+          a.dismissMethod === 'random'
+            ? RANDOMIZABLE[Math.floor(Math.random() * RANDOMIZABLE.length)]
+            : a.dismissMethod
+        );
+      }
+      setAlarmLoaded(true);
     });
   }, [params.alarmId]);
+
+  const dataReady = alarmLoaded && settings !== null;
+
+  // Skip the ambient pre-check for Clap/Buzz — they run their own mic
+  // session for the mission itself, and iOS only supports one recorder at a
+  // time, so running both concurrently would conflict.
+  const needsAmbientCheck =
+    dataReady &&
+    !!settings?.ambientAwarenessEnabled &&
+    !!effectiveMission &&
+    !MIC_MISSIONS.includes(effectiveMission);
+  const ambientCheckDone = dataReady && (!needsAmbientCheck || roomActive !== null);
+
+  useEffect(() => {
+    if (!ambientCheckDone) return;
+    Haptics.notificationAsync(
+      roomActive ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning
+    ).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ambientCheckDone]);
 
   async function dismiss() {
     if (alarm) {
@@ -75,31 +109,50 @@ export default function RingingScreen() {
 
   const clockLabel = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
+  // The mic-based missions (Clap/Buzz) need a clean signal to count against —
+  // a blaring alarm loop would trigger false positives on their own
+  // threshold detection — so we skip continuous sound for those two rather
+  // than trying to duck volume mid-mission. Also gated on the ambient
+  // pre-check finishing first: sampling room noise while our own alarm is
+  // already playing would make every room read as "active".
+  const shouldPlaySound =
+    ambientCheckDone && !!alarm && !!effectiveMission && !MIC_MISSIONS.includes(effectiveMission);
+
   return (
     <View style={styles.screen}>
+      {shouldPlaySound && <AlarmSoundLoop soundName={alarm!.sound} />}
       <WaveBackground />
       <SafeAreaView style={styles.safeArea}>
         <Text style={styles.clock}>{clockLabel}</Text>
         <View style={styles.statusPill}>
           <Text style={styles.statusText}>
-            {params.triggeredBy === 'smart-detection' ? 'Light sleep detected' : 'Deadline reached'}
+            {ambientCheckDone && roomActive
+              ? "Sounds like you're already up"
+              : params.triggeredBy === 'smart-detection'
+                ? 'Light sleep detected'
+                : 'Deadline reached'}
           </Text>
         </View>
 
-        {effectiveMission && (
+        {effectiveMission && ambientCheckDone && (
           <View style={styles.eyebrow}>
             <Text style={styles.eyebrowText}>{missionLabel(effectiveMission)}</Text>
           </View>
         )}
 
         <View style={styles.missionArea}>
-          {effectiveMission === 'math' && <MathMission onSolved={dismiss} />}
-          {effectiveMission === 'tap' && <TapMission onComplete={dismiss} />}
-          {effectiveMission === 'shake' && <ShakeMission onComplete={dismiss} />}
-          {effectiveMission && MIC_MISSIONS.includes(effectiveMission) && (
-            <ComingSoonMission mission={effectiveMission} onDismiss={dismiss} />
+          {needsAmbientCheck && !ambientCheckDone && (
+            <>
+              <AmbientPreCheck onResult={setRoomActive} />
+              <Text style={styles.shakeHint}>Listening for room noise…</Text>
+            </>
           )}
-          {!effectiveMission && (
+          {ambientCheckDone && effectiveMission === 'math' && <MathMission onSolved={dismiss} />}
+          {ambientCheckDone && effectiveMission === 'tap' && <TapMission onComplete={dismiss} />}
+          {ambientCheckDone && effectiveMission === 'shake' && <ShakeMission onComplete={dismiss} />}
+          {ambientCheckDone && effectiveMission === 'clap' && <ClapMission onComplete={dismiss} />}
+          {ambientCheckDone && effectiveMission === 'buzz' && <BuzzMission onComplete={dismiss} />}
+          {ambientCheckDone && !effectiveMission && (
             <Pressable style={styles.fallbackDismiss} onPress={dismiss}>
               <Text style={styles.fallbackDismissText}>Dismiss</Text>
             </Pressable>
@@ -108,6 +161,51 @@ export default function RingingScreen() {
       </SafeAreaView>
     </View>
   );
+}
+
+function AlarmSoundLoop({ soundName }: { soundName: string }) {
+  const source = isSoundName(soundName) ? SOUND_FILES[soundName] : SOUND_FILES['Classic Alarm'];
+  const player = useAudioPlayer(source);
+
+  useEffect(() => {
+    setAudioModeAsync({
+      playsInSilentMode: true,
+      interruptionMode: 'doNotMix',
+      shouldPlayInBackground: true,
+    }).catch(() => {});
+    player.loop = true;
+    player.play();
+    return () => {
+      player.pause();
+    };
+  }, [player]);
+
+  return null;
+}
+
+function AmbientPreCheck({ onResult }: { onResult: (roomActive: boolean) => void }) {
+  const { metering } = useMicMetering();
+  const samples = useRef<number[]>([]);
+  const reported = useRef(false);
+
+  useEffect(() => {
+    if (metering !== null) samples.current.push(metering);
+  }, [metering]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (reported.current) return;
+      reported.current = true;
+      const avg = samples.current.length
+        ? samples.current.reduce((a, b) => a + b, 0) / samples.current.length
+        : -80;
+      onResult(avg > AMBIENT_ACTIVE_THRESHOLD_DB);
+    }, AMBIENT_CHECK_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return null;
 }
 
 function ProgressBar({ progress }: { progress: number }) {
@@ -233,22 +331,108 @@ function ShakeMission({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-function ComingSoonMission({
+function ClapMission({ onComplete }: { onComplete: () => void }) {
+  const { metering, error } = useMicMetering();
+  const [count, setCount] = useState(0);
+  const wasAbove = useRef(false);
+  const lastCountAt = useRef(0);
+
+  useEffect(() => {
+    if (metering === null) return;
+    const THRESHOLD_DB = -20;
+    const DEBOUNCE_MS = 250;
+    const now = Date.now();
+    const isAbove = metering > THRESHOLD_DB;
+    if (isAbove && !wasAbove.current && now - lastCountAt.current > DEBOUNCE_MS) {
+      lastCountAt.current = now;
+      setCount((c) => {
+        const next = c + 1;
+        if (next >= CLAP_TARGET) onComplete();
+        return next;
+      });
+    }
+    wasAbove.current = isAbove;
+  }, [metering, onComplete]);
+
+  if (error) return <MicPermissionFallback mission="clap" onDismiss={onComplete} />;
+
+  return (
+    <View style={styles.centerWrap}>
+      <Text style={styles.counter}>
+        {count}
+        <Text style={styles.counterTarget}>/{CLAP_TARGET}</Text>
+      </Text>
+      <ProgressBar progress={count / CLAP_TARGET} />
+      <Text style={styles.shakeHint}>Clap your hands!</Text>
+    </View>
+  );
+}
+
+function BuzzMission({ onComplete }: { onComplete: () => void }) {
+  const { metering, error } = useMicMetering();
+  const [count, setCount] = useState(0);
+  const aboveSince = useRef<number | null>(null);
+  const cooldownUntil = useRef(0);
+  const countedThisBurst = useRef(false);
+
+  useEffect(() => {
+    if (metering === null) return;
+    const THRESHOLD_DB = -25;
+    const MIN_SUSTAIN_MS = 700;
+    const COOLDOWN_MS = 500;
+    const now = Date.now();
+    const isAbove = metering > THRESHOLD_DB;
+
+    if (isAbove) {
+      if (aboveSince.current === null) aboveSince.current = now;
+      if (
+        !countedThisBurst.current &&
+        now - aboveSince.current >= MIN_SUSTAIN_MS &&
+        now >= cooldownUntil.current
+      ) {
+        countedThisBurst.current = true;
+        cooldownUntil.current = now + COOLDOWN_MS;
+        setCount((c) => {
+          const next = c + 1;
+          if (next >= BUZZ_TARGET) onComplete();
+          return next;
+        });
+      }
+    } else {
+      aboveSince.current = null;
+      countedThisBurst.current = false;
+    }
+  }, [metering, onComplete]);
+
+  if (error) return <MicPermissionFallback mission="buzz" onDismiss={onComplete} />;
+
+  return (
+    <View style={styles.centerWrap}>
+      <Text style={styles.counter}>
+        {count}
+        <Text style={styles.counterTarget}>/{BUZZ_TARGET}</Text>
+      </Text>
+      <ProgressBar progress={count / BUZZ_TARGET} />
+      <Text style={styles.shakeHint}>Buzzzzz into the mic!</Text>
+    </View>
+  );
+}
+
+function MicPermissionFallback({
   mission,
   onDismiss,
 }: {
   mission: DismissMethod;
   onDismiss: () => void;
 }) {
-  const target = mission === 'clap' ? CLAP_TARGET : BUZZ_TARGET;
   return (
     <View style={styles.centerWrap}>
       <Text style={styles.comingSoonText}>
-        {missionLabel(mission)} ×{target} uses mic metering, which isn't wired up yet — this
-        mission is a stand-in for now.
+        BuzzBee needs microphone access for the {missionLabel(mission)} mission. You can dismiss
+        manually this time.
       </Text>
       <Pressable style={styles.fallbackDismiss} onPress={onDismiss}>
-        <Text style={styles.fallbackDismissText}>Dismiss (dev)</Text>
+        <Text style={styles.fallbackDismissText}>Dismiss</Text>
       </Pressable>
     </View>
   );

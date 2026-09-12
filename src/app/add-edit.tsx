@@ -126,6 +126,16 @@ export default function AddEditScreen() {
             </Pressable>
           </View>
 
+          <Pressable
+            style={[styles.rowCard, styles.soundRow]}
+            onPress={() => router.push('/choose-sound')}>
+            <Text style={styles.soundLabel}>Sound</Text>
+            <View style={styles.soundRight}>
+              <Text style={styles.soundValue}>{draft.sound}</Text>
+              <ChevronRight />
+            </View>
+          </Pressable>
+
           {isEditing && (
             <Pressable style={styles.deleteRow} onPress={handleDelete}>
               <Text style={styles.deleteText}>Delete Alarm</Text>
@@ -210,6 +220,10 @@ const styles = StyleSheet.create({
   missionMain: { flex: 1, minWidth: 0 },
   missionTitle: { fontFamily: Fonts.bold, fontSize: 16, color: Colors.ink },
   missionSub: { fontFamily: Fonts.semiBold, fontSize: 12, color: Colors.inkFaint, marginTop: 2 },
+  soundRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  soundLabel: { fontFamily: Fonts.bold, fontSize: 16, color: Colors.ink },
+  soundRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  soundValue: { fontFamily: Fonts.semiBold, fontSize: 14.5, color: Colors.inkFaint },
   deleteRow: { alignItems: 'center', paddingVertical: 8 },
   deleteText: { fontFamily: Fonts.bold, fontSize: 14, color: Colors.danger },
   footer: {
