@@ -2,7 +2,7 @@ import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Accelerometer } from 'expo-sensors';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
@@ -32,6 +32,11 @@ const MIC_MISSIONS: DismissMethod[] = ['clap', 'buzz'];
 // the other thresholds in this file — needs real-room calibration.
 const AMBIENT_ACTIVE_THRESHOLD_DB = -28;
 const AMBIENT_CHECK_MS = 1200;
+// If the mission is started but sees no progress for this long, we assume
+// the person fell back asleep mid-mission: the alarm resumes ringing and
+// the mission resets to 0, rather than staying silently "in progress"
+// forever.
+const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000;
 
 // "<Verb> to dismiss" pill-eyebrow copy, per design/Ringing*.dc.html.
 const MISSION_VERBS: Record<DismissMethod, string> = {
@@ -60,6 +65,14 @@ export default function RingingScreen() {
   const [roomActive, setRoomActive] = useState<boolean | null>(null);
   const startedAt = useRef(Date.now());
   const [now, setNow] = useState(new Date());
+
+  // 'ringing' = alarm sound playing, showing a Start Mission button.
+  // 'mission' = sound paused, the actual mission UI is live. missionAttempt
+  // increments each time a mission (re)starts so its component remounts
+  // with fresh state (progress reset) even across repeated timeouts.
+  const [phase, setPhase] = useState<'ringing' | 'mission'>('ringing');
+  const [missionAttempt, setMissionAttempt] = useState(0);
+  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const tick = setInterval(() => setNow(new Date()), 1000);
@@ -105,7 +118,34 @@ export default function RingingScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ambientCheckDone]);
 
+  const clearInactivityTimer = useCallback(() => {
+    if (inactivityTimer.current) {
+      clearTimeout(inactivityTimer.current);
+      inactivityTimer.current = null;
+    }
+  }, []);
+
+  const armInactivityTimer = useCallback(() => {
+    clearInactivityTimer();
+    inactivityTimer.current = setTimeout(() => {
+      // No progress in 3 minutes — assume they fell back asleep. Resume
+      // ringing and drop back to the Start Mission screen; the mission
+      // component unmounts here, so its progress resets to 0 next attempt.
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      setPhase('ringing');
+    }, INACTIVITY_TIMEOUT_MS);
+  }, [clearInactivityTimer]);
+
+  useEffect(() => clearInactivityTimer, [clearInactivityTimer]);
+
+  function startMission() {
+    setMissionAttempt((n) => n + 1);
+    setPhase('mission');
+    armInactivityTimer();
+  }
+
   async function dismiss() {
+    clearInactivityTimer();
     if (alarm) {
       await cancelAlarmNotification(alarm.id);
       const deadline = new Date();
@@ -127,15 +167,11 @@ export default function RingingScreen() {
   const clockLabel = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const [clockValue, clockAmpm] = clockLabel.split(' ');
 
-  // A loud alarm has to actually make noise regardless of dismiss method —
-  // including Clap/Buzz, even though that means the alarm loop and the
-  // mission's own mic detection are picking up the same mic input. This is
-  // an untuned trade-off (see PLAN.md's Known Technical Risk section): the
-  // Clap/Buzz thresholds may need retuning against actual alarm audio
-  // rather than a silent room before launch. Only gated on the ambient
-  // pre-check finishing first: sampling room noise while our own alarm is
-  // already playing would make every room read as "active".
-  const shouldPlaySound = ambientCheckDone && !!alarm && !!effectiveMission;
+  // Sound plays while ringing (before the mission is started, and again if
+  // it times out from inactivity) and pauses once a mission is actively
+  // being attempted — this keeps Clap/Buzz's mic detection clean without
+  // ever leaving the alarm silent for the person to sleep through.
+  const shouldPlaySound = ambientCheckDone && !!alarm && !!effectiveMission && phase === 'ringing';
 
   let statusText = 'Deadline reached';
   if (ambientCheckDone && roomActive) {
@@ -175,11 +211,30 @@ export default function RingingScreen() {
                 <Text style={styles.eyebrowText}>{MISSION_VERBS[effectiveMission]}</Text>
               </View>
             )}
-            {ambientCheckDone && effectiveMission === 'math' && <MathMission onSolved={dismiss} />}
-            {ambientCheckDone && effectiveMission === 'tap' && <TapMission onComplete={dismiss} />}
-            {ambientCheckDone && effectiveMission === 'shake' && <ShakeMission onComplete={dismiss} />}
-            {ambientCheckDone && effectiveMission === 'clap' && <ClapMission onComplete={dismiss} />}
-            {ambientCheckDone && effectiveMission === 'buzz' && <BuzzMission onComplete={dismiss} />}
+            {ambientCheckDone && effectiveMission && phase === 'ringing' && (
+              <Pressable style={styles.startBtn} onPress={startMission}>
+                <Text style={styles.startBtnText}>Start Mission</Text>
+              </Pressable>
+            )}
+            {ambientCheckDone && effectiveMission && phase === 'mission' && (
+              <>
+                {effectiveMission === 'math' && (
+                  <MathMission key={missionAttempt} onSolved={dismiss} onActivity={armInactivityTimer} />
+                )}
+                {effectiveMission === 'tap' && (
+                  <TapMission key={missionAttempt} onComplete={dismiss} onActivity={armInactivityTimer} />
+                )}
+                {effectiveMission === 'shake' && (
+                  <ShakeMission key={missionAttempt} onComplete={dismiss} onActivity={armInactivityTimer} />
+                )}
+                {effectiveMission === 'clap' && (
+                  <ClapMission key={missionAttempt} onComplete={dismiss} onActivity={armInactivityTimer} />
+                )}
+                {effectiveMission === 'buzz' && (
+                  <BuzzMission key={missionAttempt} onComplete={dismiss} onActivity={armInactivityTimer} />
+                )}
+              </>
+            )}
             {ambientCheckDone && !effectiveMission && (
               <Pressable style={styles.fallbackDismiss} onPress={dismiss}>
                 <Text style={styles.fallbackDismissText}>Dismiss</Text>
@@ -258,7 +313,9 @@ function Counter({ count, target }: { count: number; target: number }) {
   );
 }
 
-function MathMission({ onSolved }: { onSolved: () => void }) {
+type MissionProps = { onActivity: () => void };
+
+function MathMission({ onSolved, onActivity }: { onSolved: () => void } & MissionProps) {
   const problem = useMemo(() => {
     const a = 2 + Math.floor(Math.random() * 8); // 2..9
     const b = 2 + Math.floor(Math.random() * 8); // 2..9
@@ -268,6 +325,7 @@ function MathMission({ onSolved }: { onSolved: () => void }) {
   const [wrong, setWrong] = useState(false);
 
   function press(key: string) {
+    onActivity();
     setWrong(false);
     if (key === 'back') {
       setInput((s) => s.slice(0, -1));
@@ -314,7 +372,7 @@ function MathMission({ onSolved }: { onSolved: () => void }) {
   );
 }
 
-function TapMission({ onComplete }: { onComplete: () => void }) {
+function TapMission({ onComplete, onActivity }: { onComplete: () => void } & MissionProps) {
   const [count, setCount] = useState(0);
   const remaining = TAP_TARGET - count;
   return (
@@ -324,6 +382,7 @@ function TapMission({ onComplete }: { onComplete: () => void }) {
       <Pressable
         style={styles.tapTarget}
         onPress={() => {
+          onActivity();
           const next = count + 1;
           setCount(next);
           if (next >= TAP_TARGET) onComplete();
@@ -339,7 +398,7 @@ function TapMission({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-function ShakeMission({ onComplete }: { onComplete: () => void }) {
+function ShakeMission({ onComplete, onActivity }: { onComplete: () => void } & MissionProps) {
   const [count, setCount] = useState(0);
   const remaining = SHAKE_TARGET - count;
   const lastShake = useRef(0);
@@ -354,6 +413,7 @@ function ShakeMission({ onComplete }: { onComplete: () => void }) {
       if (magnitude > THRESHOLD && !wasAbove.current && nowTs - lastShake.current > 300) {
         wasAbove.current = true;
         lastShake.current = nowTs;
+        onActivity();
         setCount((c) => {
           const next = c + 1;
           if (next >= SHAKE_TARGET) onComplete();
@@ -377,7 +437,7 @@ function ShakeMission({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-function ClapMission({ onComplete }: { onComplete: () => void }) {
+function ClapMission({ onComplete, onActivity }: { onComplete: () => void } & MissionProps) {
   const { metering, error } = useMicMetering();
   const [count, setCount] = useState(0);
   const remaining = CLAP_TARGET - count;
@@ -392,6 +452,7 @@ function ClapMission({ onComplete }: { onComplete: () => void }) {
     const isAbove = metering > THRESHOLD_DB;
     if (isAbove && !wasAbove.current && now - lastCountAt.current > DEBOUNCE_MS) {
       lastCountAt.current = now;
+      onActivity();
       setCount((c) => {
         const next = c + 1;
         if (next >= CLAP_TARGET) onComplete();
@@ -399,7 +460,7 @@ function ClapMission({ onComplete }: { onComplete: () => void }) {
       });
     }
     wasAbove.current = isAbove;
-  }, [metering, onComplete]);
+  }, [metering, onComplete, onActivity]);
 
   if (error) return <MicPermissionFallback mission="clap" onDismiss={onComplete} />;
 
@@ -413,7 +474,7 @@ function ClapMission({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-function BuzzMission({ onComplete }: { onComplete: () => void }) {
+function BuzzMission({ onComplete, onActivity }: { onComplete: () => void } & MissionProps) {
   const { metering, error } = useMicMetering();
   const [count, setCount] = useState(0);
   const remaining = BUZZ_TARGET - count;
@@ -438,6 +499,7 @@ function BuzzMission({ onComplete }: { onComplete: () => void }) {
       ) {
         countedThisBurst.current = true;
         cooldownUntil.current = now + COOLDOWN_MS;
+        onActivity();
         setCount((c) => {
           const next = c + 1;
           if (next >= BUZZ_TARGET) onComplete();
@@ -448,7 +510,7 @@ function BuzzMission({ onComplete }: { onComplete: () => void }) {
       aboveSince.current = null;
       countedThisBurst.current = false;
     }
-  }, [metering, onComplete]);
+  }, [metering, onComplete, onActivity]);
 
   if (error) return <MicPermissionFallback mission="buzz" onDismiss={onComplete} />;
 
@@ -577,6 +639,18 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
+  startBtn: {
+    backgroundColor: Colors.accentDeep,
+    paddingHorizontal: 36,
+    paddingVertical: 20,
+    borderRadius: Radii.pill,
+    shadowColor: Colors.accentDeep,
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
+  },
+  startBtnText: { fontFamily: Fonts.extraBold, fontSize: 18, color: '#fff', letterSpacing: 0.4 },
   missionArea: {
     flex: 1,
     width: '100%',
