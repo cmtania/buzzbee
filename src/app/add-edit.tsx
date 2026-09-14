@@ -1,17 +1,22 @@
-import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ChevronRight, LongArrowRight } from '@/components/icons';
+import { ChevronRight, InfoIcon, LongArrowRight } from '@/components/icons';
+import { SwipeToDismissSheet } from '@/components/swipe-to-dismiss-sheet';
 import { TimeStepper } from '@/components/time-stepper';
 import { Toggle } from '@/components/toggle';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
 import { useAlarmDraft } from '@/lib/alarm-draft-context';
 import { dayShortLabel } from '@/lib/alarm-utils';
+import { getCustomSounds, soundDisplayName } from '@/lib/custom-sounds';
 import { deleteAlarm, saveAlarm } from '@/lib/db';
 import { genId } from '@/lib/id';
 import { MissionIcon, missionLabel, missionSubtitle } from '@/lib/mission-meta';
 import { cancelAlarmNotification, scheduleAlarmNotification } from '@/lib/scheduling';
+import { CustomSound } from '@/lib/types';
 
 const ALL_DAYS = [1, 2, 3, 4, 5, 6, 0]; // Mon..Sun display order
 
@@ -19,6 +24,18 @@ export default function AddEditScreen() {
   const router = useRouter();
   const { draft, setDraft } = useAlarmDraft();
   const isEditing = draft.id !== '';
+  const [customSounds, setCustomSounds] = useState<CustomSound[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      getCustomSounds().then(setCustomSounds);
+    }, [])
+  );
+  // Guards against the same TimePickerModal-vs-sheet conflict fixed in
+  // wind-down-settings.tsx: RN's <Modal> touches leak through to this
+  // sheet's swipe/tap-outside dismiss underneath it, so both need to be
+  // disabled while any of this screen's time pickers are open.
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   function toggleDay(dow: number) {
     setDraft((d) => ({
@@ -48,13 +65,19 @@ export default function AddEditScreen() {
   }
 
   return (
-    <View style={styles.screen}>
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.topbar}>
-          <Text style={styles.title}>{isEditing ? 'Edit Alarm' : 'New Alarm'}</Text>
-        </View>
+    <Pressable
+      style={styles.backdrop}
+      onPress={() => {
+        if (!pickerOpen) handleCancel();
+      }}>
+      <SwipeToDismissSheet onDismiss={handleCancel} style={styles.sheet} disabled={pickerOpen}>
+        <SafeAreaView edges={['bottom']} style={styles.safeArea}>
+          <View style={styles.handle} />
+          <View style={styles.topbar}>
+            <Text style={styles.title}>{isEditing ? 'Edit Alarm' : 'New Alarm'}</Text>
+          </View>
 
-        <ScrollView contentContainerStyle={styles.body}>
+          <ScrollView contentContainerStyle={styles.body}>
           <View style={styles.rowCard}>
             <View style={styles.smartRow}>
               <Text style={styles.smartLabel}>Smart Wake</Text>
@@ -84,9 +107,21 @@ export default function AddEditScreen() {
             <View style={styles.smartExplainer}>
               <Text style={styles.buzzTag}>Buzz says</Text>
               <Text style={styles.explainerText}>
-                I'll ring the moment you're in light sleep — never later than your deadline!
+                Instead of one fixed time, set a window below. I'll ring the moment I sense
+                you're already stirring — or by your hard deadline at the latest, so you're
+                never overslept.
               </Text>
             </View>
+            {draft.smartWakeEnabled && (
+              <View style={styles.smartCaveat}>
+                <InfoIcon size={14} color={Colors.inkFaint} />
+                <Text style={styles.smartCaveatText}>
+                  Needs BuzzBee running in the background — light-sleep detection won't trigger
+                  if the app is fully closed/swiped away. You'll still always ring by your hard
+                  deadline either way.
+                </Text>
+              </View>
+            )}
           </View>
 
           {draft.smartWakeEnabled ? (
@@ -97,6 +132,8 @@ export default function AddEditScreen() {
                   label="Starts"
                   value={draft.windowStart}
                   onChange={(v) => setDraft((d) => ({ ...d, windowStart: v }))}
+                  bigFont
+                  onOpenChange={setPickerOpen}
                 />
                 <View style={styles.timeSep}>
                   <LongArrowRight size={16} color={Colors.inkFaint} />
@@ -106,6 +143,8 @@ export default function AddEditScreen() {
                   value={draft.windowEnd}
                   onChange={(v) => setDraft((d) => ({ ...d, windowEnd: v }))}
                   deadline
+                  bigFont
+                  onOpenChange={setPickerOpen}
                 />
               </View>
               <Text style={styles.hint}>
@@ -115,11 +154,15 @@ export default function AddEditScreen() {
           ) : (
             <View>
               <Text style={styles.sectionLabel}>Alarm time</Text>
-              <TimeStepper
-                label="Rings at"
-                value={draft.windowEnd}
-                onChange={(v) => setDraft((d) => ({ ...d, windowStart: v, windowEnd: v }))}
-              />
+              <View style={styles.fixedTimeCenterWrap}>
+                <TimeStepper
+                  label="Rings at"
+                  value={draft.windowEnd}
+                  onChange={(v) => setDraft((d) => ({ ...d, windowStart: v, windowEnd: v }))}
+                  large
+                  onOpenChange={setPickerOpen}
+                />
+              </View>
             </View>
           )}
 
@@ -163,37 +206,63 @@ export default function AddEditScreen() {
             onPress={() => router.push('/choose-sound')}>
             <Text style={styles.soundLabel}>Sound</Text>
             <View style={styles.soundRight}>
-              <Text style={styles.soundValue}>{draft.sound}</Text>
+              <Text style={styles.soundValue} numberOfLines={1}>
+                {soundDisplayName(draft.sound, customSounds)}
+              </Text>
               <ChevronRight />
             </View>
           </Pressable>
+
+          <View style={[styles.rowCard, styles.vibrateRow]}>
+            <Text style={styles.soundLabel}>Vibrate</Text>
+            <Toggle
+              value={draft.vibrationEnabled}
+              onChange={(v) => setDraft((d) => ({ ...d, vibrationEnabled: v }))}
+            />
+          </View>
 
           {isEditing && (
             <Pressable style={styles.deleteRow} onPress={handleDelete}>
               <Text style={styles.deleteText}>Delete Alarm</Text>
             </Pressable>
           )}
-        </ScrollView>
+          </ScrollView>
 
-        <View style={styles.footer}>
-          <Pressable style={styles.cancelBtn} onPress={handleCancel}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </Pressable>
-          <Pressable style={styles.saveBtn} onPress={handleSave}>
-            <Text style={styles.saveText}>Save Alarm</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    </View>
+          <View style={styles.footer}>
+            <Pressable style={styles.cancelBtn} onPress={handleCancel}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable style={styles.saveBtn} onPress={handleSave}>
+              <Text style={styles.saveText}>{isEditing ? 'Update My Alarm' : 'Create My Alarm'}</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </SwipeToDismissSheet>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.bg },
-  safeArea: { flex: 1 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(43,36,32,0.35)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: Colors.bg,
+    borderTopLeftRadius: Radii.xl,
+    borderTopRightRadius: Radii.xl,
+    maxHeight: '92%',
+  },
+  safeArea: {},
+  handle: {
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: Colors.trackOff,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 4,
+  },
   topbar: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.md, alignItems: 'center' },
   title: { fontFamily: Fonts.extraBold, fontSize: 17, color: Colors.ink },
-  body: { padding: Spacing.xl, gap: Spacing.lg, paddingBottom: 40 },
+  body: { padding: Spacing.xl, gap: Spacing.lg, paddingBottom: 24 },
   sectionLabel: {
     fontFamily: Fonts.bold,
     fontSize: 12.5,
@@ -203,6 +272,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   timeRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  fixedTimeCenterWrap: { alignItems: 'center' },
   timeSep: { flexShrink: 0 },
   hint: { fontSize: 12.5, color: Colors.inkFaint, marginTop: 10, lineHeight: 17, fontFamily: Fonts.medium },
   rowCard: {
@@ -228,6 +298,21 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   explainerText: { fontFamily: Fonts.semiBold, fontSize: 12, color: Colors.inkSoft, lineHeight: 17 },
+  smartCaveat: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.trackOff,
+  },
+  smartCaveatText: {
+    flex: 1,
+    fontFamily: Fonts.medium,
+    fontSize: 11.5,
+    color: Colors.inkFaint,
+    lineHeight: 16,
+  },
   days: { flexDirection: 'row', justifyContent: 'space-between' },
   day: {
     width: 40,
@@ -254,9 +339,10 @@ const styles = StyleSheet.create({
   missionTitle: { fontFamily: Fonts.bold, fontSize: 16, color: Colors.ink },
   missionSub: { fontFamily: Fonts.semiBold, fontSize: 12, color: Colors.inkFaint, marginTop: 2 },
   soundRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  vibrateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   soundLabel: { fontFamily: Fonts.bold, fontSize: 16, color: Colors.ink },
-  soundRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  soundValue: { fontFamily: Fonts.semiBold, fontSize: 14.5, color: Colors.inkFaint },
+  soundRight: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginLeft: 12 },
+  soundValue: { flexShrink: 1, fontFamily: Fonts.semiBold, fontSize: 14.5, color: Colors.inkFaint, textAlign: 'right' },
   deleteRow: { alignItems: 'center', paddingVertical: 8 },
   deleteText: { fontFamily: Fonts.bold, fontSize: 14, color: Colors.danger },
   footer: {

@@ -4,12 +4,6 @@ import { Alarm } from './types';
 
 export type DetectorHandle = { stop: () => void };
 
-// Fixed-time alarms (Smart Wake off) now store windowStart === windowEnd —
-// a single alarm time, not a real range. isWindowActiveNow needs *some*
-// non-empty span leading up to that instant so the monitor can pick it up
-// as a candidate before the deadline check can ever fire it.
-const FIXED_TIME_LEAD_MIN = 2;
-
 // Tuned empirically for "gentle restlessness" vs. either dead stillness or a
 // deliberate shake — this is a heuristic, not a validated sleep-stage
 // classifier (see PLAN.md's Known Technical Risk section). Needs real
@@ -71,9 +65,9 @@ export function startMovementDetector(
 
 /**
  * Is `alarm`'s wake window open right now (today's date, time-of-day only)?
- * Applies to every enabled alarm, not just Smart-Wake ones — a fixed-time
- * alarm still needs to be "monitored" so its deadline check below can fire
- * it, it just never runs the movement detector.
+ * Only meaningful for Smart-Wake alarms — fixed-time alarms are handled by
+ * isFixedTimeDue() instead, which checks directly against the deadline
+ * rather than needing to catch a narrow "window open" moment in advance.
  */
 export function isWindowActiveNow(alarm: Alarm, now: Date = new Date()): boolean {
   if (!alarm.enabled) return false;
@@ -83,11 +77,8 @@ export function isWindowActiveNow(alarm: Alarm, now: Date = new Date()): boolean
   const minutesNow = now.getHours() * 60 + now.getMinutes();
   const [sh, sm] = alarm.windowStart.split(':').map(Number);
   const [eh, em] = alarm.windowEnd.split(':').map(Number);
-  let startMin = sh * 60 + sm;
+  const startMin = sh * 60 + sm;
   const endMin = eh * 60 + em;
-  if (startMin === endMin) {
-    startMin = (startMin - FIXED_TIME_LEAD_MIN + 1440) % 1440;
-  }
 
   if (startMin <= endMin) {
     return minutesNow >= startMin && minutesNow < endMin;
@@ -96,6 +87,38 @@ export function isWindowActiveNow(alarm: Alarm, now: Date = new Date()): boolean
   // "already triggered today" dedup keys off calendar date, so a window
   // crossing midnight isn't fully handled yet.
   return minutesNow >= startMin || minutesNow < endMin;
+}
+
+const FIXED_TIME_GRACE_MIN = 3;
+
+/**
+ * Is this fixed-time (Smart Wake off) alarm due to ring right now?
+ *
+ * Fixed-time alarms used to be folded into isWindowActiveNow() via a
+ * synthetic 2-minute lead window that the monitor had to "catch" in order
+ * to start tracking the alarm as a candidate before its deadline check could
+ * ever fire. That was fragile: miss that single 2-minute slice (app closed,
+ * backgrounded, or just not polled at the right instant) and the alarm
+ * would silently never ring for the entire day. Checking directly against
+ * the deadline on every tick — "are we at or just past the target minute?"
+ * — removes that race: as soon as the monitor is ticking in the foreground,
+ * a fixed-time alarm fires the moment it's due, with no advance notice
+ * required.
+ */
+export function isFixedTimeDue(
+  alarm: Alarm,
+  now: Date = new Date(),
+  graceMin = FIXED_TIME_GRACE_MIN
+): boolean {
+  if (!alarm.enabled || alarm.smartWakeEnabled) return false;
+  const dow = now.getDay();
+  if (alarm.repeatDays.length > 0 && !alarm.repeatDays.includes(dow)) return false;
+
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
+  const [eh, em] = alarm.windowEnd.split(':').map(Number);
+  const endMin = eh * 60 + em;
+  const minutesPastDeadline = (minutesNow - endMin + 1440) % 1440;
+  return minutesPastDeadline < graceMin;
 }
 
 /** Today's Date object for this alarm's hard deadline (windowEnd). */

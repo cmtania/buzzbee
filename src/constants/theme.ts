@@ -23,6 +23,9 @@ export const Fonts = {
   semiBold: 'Manrope_600SemiBold',
   bold: 'Manrope_700Bold',
   extraBold: 'Manrope_800ExtraBold',
+  // Official brand font — used only for the "BuzzBee" wordmark itself, never
+  // body copy or other UI text.
+  brand: 'DynaPuff_700Bold',
 } as const;
 
 export const Radii = {

@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 
 import { Colors } from '@/constants/theme';
 

@@ -11,6 +11,7 @@ export type Alarm = {
   dismissMethod: DismissMethod;
   sound: string;
   enabled: boolean;
+  vibrationEnabled: boolean;
 };
 
 // Wind-Down / Calendar auto-shift / Ambient awareness are GLOBAL settings,
@@ -24,6 +25,20 @@ export type AppSettings = {
   ambientAwarenessEnabled: boolean;
   simulateModeEnabled: boolean; // Simulate/Test Mode toggle
   hasOnboarded: boolean;
+  hapticsEnabled: boolean; // global tap-feedback toggle, see haptic-pressable.tsx
+  defaultSound: string; // used as the sound for a newly-created alarm draft
+};
+
+// A user-recorded alarm sound. `filePath` is stored directly as an alarm's
+// `sound` / a settings' `defaultSound` value (a `file://` URI) — there's no
+// separate id-lookup at playback/scheduling time, so isSoundName()'s existing
+// "not a bundled name" fallback in scheduling.ts/alarmkit.ts/ringing.tsx
+// already degrades gracefully if a custom sound is later deleted.
+export type CustomSound = {
+  id: string;
+  name: string;
+  filePath: string;
+  createdAt: string;
 };
 
 export type WakeEvent = {
@@ -91,6 +106,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ambientAwarenessEnabled: false,
   simulateModeEnabled: false,
   hasOnboarded: false,
+  hapticsEnabled: true,
+  defaultSound: 'Classic Alarm',
 };
 
 export function newAlarmDraft(): Alarm {
@@ -103,5 +120,6 @@ export function newAlarmDraft(): Alarm {
     dismissMethod: 'shake',
     sound: 'Classic Alarm',
     enabled: true,
+    vibrationEnabled: true,
   };
 }

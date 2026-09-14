@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ReactNode, useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FloatingTabBar } from '@/components/floating-tab-bar';
@@ -16,6 +17,7 @@ import {
 } from '@/components/icons';
 import { Toggle } from '@/components/toggle';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
+import { formatClock } from '@/lib/alarm-utils';
 import { getSettings, updateSettings } from '@/lib/db';
 import { AppSettings } from '@/lib/types';
 import { rescheduleWindDownNotification } from '@/lib/wind-down-scheduling';
@@ -51,11 +53,11 @@ export default function SettingsScreen() {
             <View style={styles.group}>
               <Row
                 icon={<MoonIcon size={16} color={Colors.accentDeep} />}
-                title="Wind-Down Mode"
+                title="Bedtime Reminder"
                 sub={
                   settings.bedtime
-                    ? `Reminder ${settings.windDownOffsetMin} min before ${settings.bedtime} bedtime`
-                    : `Reminder ${settings.windDownOffsetMin} min before bed — tap to set bedtime`
+                    ? `Calming reminder & breathing screen ${settings.windDownOffsetMin} min before your ${formatClock(settings.bedtime).value} ${formatClock(settings.bedtime).ampm} bedtime`
+                    : 'Calming reminder before bed — tap to set your bedtime'
                 }
                 divider={false}
                 onPress={() => router.push('/wind-down-settings')}
@@ -69,7 +71,7 @@ export default function SettingsScreen() {
               <Row
                 icon={<CalendarIcon size={16} color={Colors.accentDeep} />}
                 title="Calendar Auto-Shift"
-                sub="Checks tomorrow's first event"
+                sub="Suggests moving your wake window the evening before, if tomorrow's first event would conflict with it"
                 right={
                   <Toggle
                     value={settings.calendarAutoShiftEnabled}
@@ -80,7 +82,7 @@ export default function SettingsScreen() {
               <Row
                 icon={<MicIcon size={16} color={Colors.accentDeep} />}
                 title="Ambient Awareness"
-                sub="On-device only, never recorded"
+                sub="On a Smart Wake early ring, checks room noise for 1 minute first — skips straight to a quick 'already up?' check instead of the mission if you're already active. On-device only, never recorded or uploaded"
                 right={
                   <Toggle
                     value={settings.ambientAwarenessEnabled}
@@ -105,27 +107,19 @@ export default function SettingsScreen() {
                 icon={<BellIcon size={16} color={Colors.accentDeep} />}
                 title="Notifications"
                 divider={false}
-                onPress={() => {}}
+                onPress={() => router.push('/notifications-settings')}
                 right={<ChevronRight />}
               />
               <Row
                 icon={<BuzzIcon size={16} color={Colors.accentDeep} />}
                 title="Sound & Haptics"
-                onPress={() => {}}
+                onPress={() => router.push('/sound-haptics-settings')}
                 right={<ChevronRight />}
               />
               <Row
                 icon={<InfoIcon size={16} color={Colors.accentDeep} />}
                 title="About BuzzBee"
-                onPress={() => {}}
-                right={<ChevronRight />}
-              />
-              <Row
-                title="Replay Onboarding"
-                onPress={async () => {
-                  await updateSettings({ hasOnboarded: false });
-                  router.replace('/onboarding/welcome');
-                }}
+                onPress={() => router.push('/about')}
                 right={<ChevronRight />}
               />
             </View>

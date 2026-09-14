@@ -11,7 +11,11 @@
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.cmtania.buzzbeealarm",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAlarmKitUsageDescription": "BuzzBee schedules your alarms with AlarmKit so they can still ring — and open BuzzBee straight to your mission — even if the app is fully closed."
+      },
+      "entitlements": {
+        "com.apple.security.application-groups": ["group.com.cmtania.buzzbeealarm"]
       }
     },
     "android": {
@@ -39,6 +43,14 @@
     "plugins": [
       "expo-router",
       [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "26.1"
+          }
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#FBF3E4",
@@ -50,7 +62,8 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "BuzzBee listens for claps and buzzing sounds to dismiss the alarm, and can optionally sense room noise before ringing. Audio is analyzed on-device only — it's never recorded or uploaded."
+          "microphonePermission": "BuzzBee listens for claps and buzzing sounds to dismiss the alarm, and can optionally sense room noise before ringing — that audio is analyzed on-device only and never recorded or uploaded. If you record your own alarm sound, that recording is saved only on your device and never uploaded.",
+          "enableBackgroundPlayback": true
         }
       ],
       "expo-font",
@@ -65,7 +78,17 @@
         "expo-notifications",
         {
           "icon": "./assets/images/android-icon-monochrome.png",
-          "color": "#F5A623"
+          "color": "#F5A623",
+          "sounds": [
+            "./assets/sounds/notif/classic_alarm.wav",
+            "./assets/sounds/notif/digital_buzzer.wav",
+            "./assets/sounds/notif/warning_buzzer.wav",
+            "./assets/sounds/notif/morning_alarm.wav",
+            "./assets/sounds/notif/intense_electricity.wav",
+            "./assets/sounds/notif/sound_alert.wav",
+            "./assets/sounds/notif/space_shooter.wav",
+            "./assets/sounds/notif/vintage_telephone.wav"
+          ]
         }
       ]
     ],

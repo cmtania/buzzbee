@@ -1,8 +1,10 @@
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CheckIcon, CloseIcon } from '@/components/icons';
+import { CheckIcon } from '@/components/icons';
+import { SwipeToDismissSheet } from '@/components/swipe-to-dismiss-sheet';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
 import { useAlarmDraft } from '@/lib/alarm-draft-context';
 import {
@@ -24,13 +26,11 @@ export default function ChooseMissionScreen() {
   }
 
   return (
-    <View style={styles.backdrop}>
-      <View style={styles.sheet}>
+    <Pressable style={styles.backdrop} onPress={() => router.back()}>
+      <SwipeToDismissSheet onDismiss={() => router.back()} style={styles.sheet}>
         <SafeAreaView edges={['bottom']} style={styles.safeArea}>
+          <View style={styles.handle} />
           <View style={styles.topbar}>
-            <Pressable style={styles.closeBtn} onPress={() => router.back()} hitSlop={8}>
-              <CloseIcon size={15} color={Colors.inkSoft} />
-            </Pressable>
             <Text style={styles.title}>Choose Mission</Text>
           </View>
           <Text style={styles.subtitle}>Pick one dismiss method for this alarm</Text>
@@ -61,13 +61,13 @@ export default function ChooseMissionScreen() {
             })}
           </View>
         </SafeAreaView>
-      </View>
-    </View>
+      </SwipeToDismissSheet>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(43,36,32,0.35)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: Colors.bg,
     borderTopLeftRadius: Radii.xl,
@@ -75,19 +75,16 @@ const styles = StyleSheet.create({
     maxHeight: '88%',
   },
   safeArea: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing.lg },
-  topbar: { alignItems: 'center', justifyContent: 'center', paddingTop: 14, paddingBottom: 2 },
-  closeBtn: {
-    position: 'absolute',
-    left: 0,
-    top: 10,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.cardBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Shadows.card,
+  handle: {
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: Colors.trackOff,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 8,
   },
+  topbar: { alignItems: 'center', justifyContent: 'center', paddingTop: 4, paddingBottom: 2 },
   title: { fontFamily: Fonts.extraBold, fontSize: 17, color: Colors.ink },
   subtitle: {
     fontFamily: Fonts.bold,

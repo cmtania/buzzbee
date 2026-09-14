@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BackArrow } from '@/components/icons';
+import { BackArrow, BellIcon, CheckIcon } from '@/components/icons';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
 import { updateSettings } from '@/lib/db';
 import { DetectorHandle, startMovementDetector } from '@/lib/smart-wake-engine';
@@ -69,7 +70,9 @@ export default function TestSmartWakeScreen() {
           )}
           {phase === 'detected' && (
             <>
-              <Text style={styles.emoji}>✅</Text>
+              <View style={[styles.resultIconWrap, styles.resultIconSuccess]}>
+                <CheckIcon size={30} color={Colors.success} />
+              </View>
               <Text style={styles.resultTitle}>Light sleep detected!</Text>
               <Text style={styles.caption}>
                 That's the exact mechanism that runs during a real wake window — BuzzBee would
@@ -79,7 +82,9 @@ export default function TestSmartWakeScreen() {
           )}
           {phase === 'deadline' && (
             <>
-              <Text style={styles.emoji}>⏰</Text>
+              <View style={[styles.resultIconWrap, styles.resultIconDeadline]}>
+                <BellIcon size={28} color={Colors.accentDeep} />
+              </View>
               <Text style={styles.resultTitle}>Deadline reached</Text>
               <Text style={styles.caption}>
                 No movement was detected in time, so BuzzBee falls back to ringing at the hard
@@ -127,7 +132,15 @@ const styles = StyleSheet.create({
   title: { fontFamily: Fonts.extraBold, fontSize: 17, color: Colors.ink },
   body: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xxl, gap: 16 },
   bigCount: { fontFamily: Fonts.extraBold, fontSize: 72, color: Colors.accentDeep },
-  emoji: { fontSize: 56 },
+  resultIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultIconSuccess: { backgroundColor: Colors.success + '26' },
+  resultIconDeadline: { backgroundColor: Colors.accent + '26' },
   resultTitle: { fontFamily: Fonts.extraBold, fontSize: 22, color: Colors.ink },
   caption: {
     fontFamily: Fonts.semiBold,

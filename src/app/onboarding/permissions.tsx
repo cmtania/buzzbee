@@ -2,9 +2,10 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { BellIcon, ShakeIcon } from '@/components/icons';
+import { BellIcon, ClockIcon, ShakeIcon } from '@/components/icons';
 import { OnboardingScreen } from '@/components/onboarding-screen';
 import { Fonts } from '@/constants/theme';
+import { ensureAlarmKitAuthorization } from '@/lib/alarmkit';
 import { ensureNotificationPermission } from '@/lib/scheduling';
 
 const INK = '#2B2420';
@@ -17,6 +18,7 @@ export default function PermissionsScreen() {
 
   useEffect(() => {
     ensureNotificationPermission();
+    ensureAlarmKitAuthorization();
   }, []);
 
   return (
@@ -37,13 +39,26 @@ export default function PermissionsScreen() {
         </View>
       </View>
 
-      <View style={[styles.row, styles.rowLast]}>
+      <View style={styles.row}>
         <View style={styles.iconWrap}>
           <BellIcon size={21} color={ACCENT_DEEP} />
         </View>
         <View style={styles.main}>
           <Text style={styles.title}>Notifications</Text>
           <Text style={styles.desc}>So BuzzBee can ring reliably, even through Silent or Focus mode.</Text>
+        </View>
+      </View>
+
+      <View style={[styles.row, styles.rowLast]}>
+        <View style={styles.iconWrap}>
+          <ClockIcon size={21} color={ACCENT_DEEP} />
+        </View>
+        <View style={styles.main}>
+          <Text style={styles.title}>Alarms</Text>
+          <Text style={styles.desc}>
+            So your alarm can still ring — and open straight to your mission — even if BuzzBee is
+            fully closed.
+          </Text>
         </View>
       </View>
     </OnboardingScreen>

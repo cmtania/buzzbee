@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
-import { Alarm, AppSettings, DEFAULT_SETTINGS, DismissMethod, WakeEvent } from './types';
+import { setSettingsCache } from './settings-cache';
+import { Alarm, AppSettings, CustomSound, DEFAULT_SETTINGS, DismissMethod, WakeEvent } from './types';
 
 const DB_NAME = 'buzzbee.db';
 
@@ -20,7 +21,10 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
           dismissMethod TEXT NOT NULL,
           sound TEXT NOT NULL,
           enabled INTEGER NOT NULL,
-          notificationId TEXT
+          notificationId TEXT,
+          vibrationEnabled INTEGER NOT NULL DEFAULT 1,
+          alarmKitId TEXT,
+          confirmAlarmKitId TEXT
         );
         CREATE TABLE IF NOT EXISTS wake_events (
           id TEXT PRIMARY KEY NOT NULL,
@@ -31,6 +35,12 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
           triggeredBy TEXT NOT NULL,
           dismissedAfterSeconds INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS custom_sounds (
+          id TEXT PRIMARY KEY NOT NULL,
+          name TEXT NOT NULL,
+          filePath TEXT NOT NULL,
+          createdAt TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS app_settings (
           id INTEGER PRIMARY KEY CHECK (id = 1),
           windDownEnabled INTEGER NOT NULL,
@@ -40,16 +50,36 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
           autoShiftTrusted INTEGER NOT NULL,
           ambientAwarenessEnabled INTEGER NOT NULL,
           simulateModeEnabled INTEGER NOT NULL,
-          hasOnboarded INTEGER NOT NULL DEFAULT 0
+          hasOnboarded INTEGER NOT NULL DEFAULT 0,
+          hapticsEnabled INTEGER NOT NULL DEFAULT 1,
+          defaultSound TEXT NOT NULL DEFAULT 'Classic Alarm'
         );
       `);
+      // "CREATE TABLE IF NOT EXISTS" only applies the full schema above to a
+      // brand-new install — an app_settings table created before a column
+      // existed is never retroactively altered by it. Add any columns that
+      // are still missing (a lightweight migration; no framework needed for
+      // a single settings row) — SQLite has no "ADD COLUMN IF NOT EXISTS",
+      // so failures from a column that already exists are expected and
+      // swallowed.
+      for (const columnDef of [
+        'hapticsEnabled INTEGER NOT NULL DEFAULT 1',
+        "defaultSound TEXT NOT NULL DEFAULT 'Classic Alarm'",
+      ]) {
+        await db.execAsync(`ALTER TABLE app_settings ADD COLUMN ${columnDef}`).catch(() => {});
+      }
+      await db
+        .execAsync('ALTER TABLE alarms ADD COLUMN vibrationEnabled INTEGER NOT NULL DEFAULT 1')
+        .catch(() => {});
+      await db.execAsync('ALTER TABLE alarms ADD COLUMN alarmKitId TEXT').catch(() => {});
+      await db.execAsync('ALTER TABLE alarms ADD COLUMN confirmAlarmKitId TEXT').catch(() => {});
       const settingsRow = await db.getFirstAsync<{ id: number }>(
         'SELECT id FROM app_settings WHERE id = 1'
       );
       if (!settingsRow) {
         await db.runAsync(
-          `INSERT INTO app_settings (id, windDownEnabled, windDownOffsetMin, bedtime, calendarAutoShiftEnabled, autoShiftTrusted, ambientAwarenessEnabled, simulateModeEnabled, hasOnboarded)
-           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO app_settings (id, windDownEnabled, windDownOffsetMin, bedtime, calendarAutoShiftEnabled, autoShiftTrusted, ambientAwarenessEnabled, simulateModeEnabled, hasOnboarded, hapticsEnabled, defaultSound)
+           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             DEFAULT_SETTINGS.windDownEnabled ? 1 : 0,
             DEFAULT_SETTINGS.windDownOffsetMin,
@@ -59,6 +89,8 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
             DEFAULT_SETTINGS.ambientAwarenessEnabled ? 1 : 0,
             DEFAULT_SETTINGS.simulateModeEnabled ? 1 : 0,
             DEFAULT_SETTINGS.hasOnboarded ? 1 : 0,
+            DEFAULT_SETTINGS.hapticsEnabled ? 1 : 0,
+            DEFAULT_SETTINGS.defaultSound,
           ]
         );
       }
@@ -78,6 +110,7 @@ type AlarmRow = {
   sound: string;
   enabled: number;
   notificationId: string | null;
+  vibrationEnabled: number | null;
 };
 
 function rowToAlarm(row: AlarmRow): Alarm {
@@ -90,6 +123,7 @@ function rowToAlarm(row: AlarmRow): Alarm {
     dismissMethod: row.dismissMethod as DismissMethod,
     sound: row.sound,
     enabled: !!row.enabled,
+    vibrationEnabled: row.vibrationEnabled == null ? true : !!row.vibrationEnabled,
   };
 }
 
@@ -110,8 +144,8 @@ export async function getAlarm(id: string): Promise<Alarm | null> {
 export async function saveAlarm(alarm: Alarm): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    `INSERT INTO alarms (id, windowStart, windowEnd, repeatDays, smartWakeEnabled, dismissMethod, sound, enabled)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO alarms (id, windowStart, windowEnd, repeatDays, smartWakeEnabled, dismissMethod, sound, enabled, vibrationEnabled)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        windowStart = excluded.windowStart,
        windowEnd = excluded.windowEnd,
@@ -119,7 +153,8 @@ export async function saveAlarm(alarm: Alarm): Promise<void> {
        smartWakeEnabled = excluded.smartWakeEnabled,
        dismissMethod = excluded.dismissMethod,
        sound = excluded.sound,
-       enabled = excluded.enabled`,
+       enabled = excluded.enabled,
+       vibrationEnabled = excluded.vibrationEnabled`,
     [
       alarm.id,
       alarm.windowStart,
@@ -129,6 +164,7 @@ export async function saveAlarm(alarm: Alarm): Promise<void> {
       alarm.dismissMethod,
       alarm.sound,
       alarm.enabled ? 1 : 0,
+      alarm.vibrationEnabled ? 1 : 0,
     ]
   );
 }
@@ -147,6 +183,34 @@ export async function getAlarmNotificationId(id: string): Promise<string | null>
   return row?.notificationId ?? null;
 }
 
+export async function setAlarmKitId(id: string, alarmKitId: string | null) {
+  const db = await getDb();
+  await db.runAsync('UPDATE alarms SET alarmKitId = ? WHERE id = ?', [alarmKitId, id]);
+}
+
+export async function getAlarmKitId(id: string): Promise<string | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ alarmKitId: string | null }>(
+    'SELECT alarmKitId FROM alarms WHERE id = ?',
+    [id]
+  );
+  return row?.alarmKitId ?? null;
+}
+
+export async function setConfirmAlarmKitId(id: string, confirmAlarmKitId: string | null) {
+  const db = await getDb();
+  await db.runAsync('UPDATE alarms SET confirmAlarmKitId = ? WHERE id = ?', [confirmAlarmKitId, id]);
+}
+
+export async function getConfirmAlarmKitId(id: string): Promise<string | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ confirmAlarmKitId: string | null }>(
+    'SELECT confirmAlarmKitId FROM alarms WHERE id = ?',
+    [id]
+  );
+  return row?.confirmAlarmKitId ?? null;
+}
+
 export async function deleteAlarm(id: string): Promise<void> {
   const db = await getDb();
   await db.runAsync('DELETE FROM alarms WHERE id = ?', [id]);
@@ -163,9 +227,11 @@ export async function getSettings(): Promise<AppSettings> {
     ambientAwarenessEnabled: number;
     simulateModeEnabled: number;
     hasOnboarded: number;
+    hapticsEnabled: number;
+    defaultSound: string;
   }>('SELECT * FROM app_settings WHERE id = 1');
   if (!row) return DEFAULT_SETTINGS;
-  return {
+  const settings: AppSettings = {
     windDownEnabled: !!row.windDownEnabled,
     windDownOffsetMin: row.windDownOffsetMin,
     bedtime: row.bedtime,
@@ -174,7 +240,11 @@ export async function getSettings(): Promise<AppSettings> {
     ambientAwarenessEnabled: !!row.ambientAwarenessEnabled,
     simulateModeEnabled: !!row.simulateModeEnabled,
     hasOnboarded: !!row.hasOnboarded,
+    hapticsEnabled: row.hapticsEnabled == null ? true : !!row.hapticsEnabled,
+    defaultSound: row.defaultSound ?? DEFAULT_SETTINGS.defaultSound,
   };
+  setSettingsCache(settings);
+  return settings;
 }
 
 export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
@@ -185,7 +255,8 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
     `UPDATE app_settings SET
        windDownEnabled = ?, windDownOffsetMin = ?, bedtime = ?,
        calendarAutoShiftEnabled = ?, autoShiftTrusted = ?,
-       ambientAwarenessEnabled = ?, simulateModeEnabled = ?, hasOnboarded = ?
+       ambientAwarenessEnabled = ?, simulateModeEnabled = ?, hasOnboarded = ?,
+       hapticsEnabled = ?, defaultSound = ?
      WHERE id = 1`,
     [
       next.windDownEnabled ? 1 : 0,
@@ -196,8 +267,11 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
       next.ambientAwarenessEnabled ? 1 : 0,
       next.simulateModeEnabled ? 1 : 0,
       next.hasOnboarded ? 1 : 0,
+      next.hapticsEnabled ? 1 : 0,
+      next.defaultSound,
     ]
   );
+  setSettingsCache(next);
   return next;
 }
 
@@ -224,4 +298,22 @@ export async function getRecentWakeEvents(limit = 7): Promise<WakeEvent[]> {
     'SELECT * FROM wake_events ORDER BY date DESC LIMIT ?',
     [limit]
   );
+}
+
+export async function getCustomSounds(): Promise<CustomSound[]> {
+  const db = await getDb();
+  return db.getAllAsync<CustomSound>('SELECT * FROM custom_sounds ORDER BY createdAt ASC');
+}
+
+export async function addCustomSound(sound: CustomSound): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    'INSERT INTO custom_sounds (id, name, filePath, createdAt) VALUES (?, ?, ?, ?)',
+    [sound.id, sound.name, sound.filePath, sound.createdAt]
+  );
+}
+
+export async function deleteCustomSound(id: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM custom_sounds WHERE id = ?', [id]);
 }

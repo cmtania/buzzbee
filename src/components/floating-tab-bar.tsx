@@ -1,5 +1,6 @@
 import { useRouter, usePathname } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HistoryTabIcon, HomeTabIcon, PlusIcon, SettingsTabIcon } from '@/components/icons';

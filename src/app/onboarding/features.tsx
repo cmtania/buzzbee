@@ -38,7 +38,7 @@ export default function FeaturesScreen() {
       <View style={styles.card}>
         <View style={styles.row}>
           <View style={styles.main}>
-            <Text style={styles.title}>Wind-Down Mode</Text>
+            <Text style={styles.title}>Bedtime Reminder</Text>
             <Text style={styles.sub}>A calm reminder before bed.</Text>
           </View>
           <Toggle

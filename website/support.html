@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Support — BuzzBee</title>
+  <link rel="icon" href="assets/bee-logo.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html">
+        <img src="assets/bee-logo.svg" alt="BuzzBee" />
+        <span class="brand-name">BuzzBee</span>
+      </a>
+      <div class="nav-links">
+        <a href="support.html">Support</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="doc-header">
+    <div class="wrap">
+      <h1>Support</h1>
+      <p class="effective-date">Answers to common questions, and how to reach us.</p>
+    </div>
+  </header>
+
+  <main class="doc-body wrap">
+    <h2>Frequently asked questions</h2>
+
+    <div class="faq-item">
+      <h3>Why didn't my alarm go off?</h3>
+      <p>
+        This is almost always about the app's state when the deadline arrived. BuzzBee works
+        most reliably while it's open (foreground or backgrounded, not force-quit) — it keeps a
+        quiet background session alive specifically so your alarm can still fire while you're
+        not actively looking at the app. If BuzzBee is fully force-quit (swiped away in your app
+        switcher), no third-party app can run its own code on iOS at all, so it falls back to a
+        backup system notification instead, which uses a shorter, non-looping sound. If your
+        alarm didn't ring, check: was the app force-quit, is Do Not Disturb / a Focus mode
+        blocking alerts, and is your media volume up? We recommend testing BuzzBee a few times
+        with your own device and settings before relying on it for anything time-critical.
+      </p>
+    </div>
+
+    <div class="faq-item">
+      <h3>What is Smart Wake, and how does it decide when to ring?</h3>
+      <p>
+        Instead of one fixed time, you set a wake <em>window</em> (e.g. 6:30–7:00 AM) and a hard
+        deadline. While that window is open, BuzzBee watches your phone's motion sensor for
+        signs of lighter sleep — small, frequent movements rather than long stillness — and
+        rings the moment it notices them. If nothing is detected, it rings at your hard
+        deadline regardless, so it never fails to wake you — it only ever wakes you earlier and
+        more gently when it can.
+      </p>
+    </div>
+
+    <div class="faq-item">
+      <h3>Does BuzzBee record my voice or conversations?</h3>
+      <p>
+        No. The microphone is used for Ambient Awareness, the Clap mission, and the Buzzzzz
+        mission, but in every case BuzzBee only reads a live volume/loudness level — it never
+        listens to, interprets, stores, or transmits actual audio content. See our
+        <a href="privacy.html">Privacy Policy</a> for the full details.
+      </p>
+    </div>
+
+    <div class="faq-item">
+      <h3>How do I change my alarm's sound or dismiss mission?</h3>
+      <p>
+        Open the alarm from the Home screen, then tap <strong>Choose a Mission</strong> or
+        <strong>Sound</strong> — each opens a picker where you can preview and select a new
+        option. Changes apply the moment you save the alarm.
+      </p>
+    </div>
+
+    <div class="faq-item">
+      <h3>Can I snooze, or dismiss without finishing the mission?</h3>
+      <p>
+        No — this is intentional. Snoozing and shortcut-dismissing are disabled by design, since
+        the entire point of a mission is confirming you're actually awake. If a specific mission
+        consistently doesn't work well for you (for example, Clap or Buzzzzz in a noisy room),
+        try switching that alarm to Math or Tap instead, which don't rely on the microphone at
+        all.
+      </p>
+    </div>
+
+    <div class="faq-item">
+      <h3>How do I turn off Wind-Down Mode, Calendar Auto-Shift, or Ambient Awareness?</h3>
+      <p>
+        These are global toggles in <strong>Settings → Smart Features</strong> — turning one off
+        stops that feature (and its notifications, where applicable) for every alarm.
+      </p>
+    </div>
+
+    <div class="faq-item">
+      <h3>Is BuzzBee free?</h3>
+      <p>
+        Yes. BuzzBee currently works fully offline with no account, no sign-up, and no paywall.
+      </p>
+    </div>
+
+    <div class="faq-item">
+      <h3>I found a bug, or have a feature request</h3>
+      <p>
+        We'd genuinely like to hear about it — the more detail the better (what you expected,
+        what happened instead, and your device/iOS version if it's a bug). Reach us using the
+        contact info below.
+      </p>
+    </div>
+
+    <div class="contact-card">
+      <h2>Still need help?</h2>
+      <p>Send us an email and we'll get back to you.</p>
+      <a class="btn btn-primary" href="mailto:REPLACE_WITH_SUPPORT_EMAIL">
+        <span class="placeholder" style="background:rgba(255,255,255,0.15);color:#fff;">[INSERT SUPPORT EMAIL]</span>
+      </a>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap footer-inner">
+      <a class="brand" href="index.html">
+        <img src="assets/bee-logo.svg" alt="BuzzBee" style="width:24px" />
+        <span class="brand-name">BuzzBee</span>
+      </a>
+      <p class="footer-tagline">Wakes you at the right moment, not just the loud one.</p>
+      <div class="footer-links">
+        <a href="support.html">Support</a>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="terms.html">Terms of Service</a>
+      </div>
+      <p class="footer-copy">© <span id="year"></span> BuzzBee. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>

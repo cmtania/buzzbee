@@ -47,7 +47,7 @@ export function nextOccurrence(time: string, repeatDays: number[], from: Date = 
   return candidateFor(7);
 }
 
-function countdownTo(target: Date, from: Date) {
+export function countdownTo(target: Date, from: Date) {
   const diffMs = target.getTime() - from.getTime();
   const totalMinutes = Math.max(0, Math.round(diffMs / 60000));
   const hours = Math.floor(totalMinutes / 60);

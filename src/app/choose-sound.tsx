@@ -1,67 +1,127 @@
-import { useAudioPlayer } from 'expo-audio';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AudioSource, useAudioPlayer } from 'expo-audio';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CheckIcon } from '@/components/icons';
+import { CheckIcon, MicIcon, TrashIcon } from '@/components/icons';
+import { SwipeToDismissSheet } from '@/components/swipe-to-dismiss-sheet';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
 import { useAlarmDraft } from '@/lib/alarm-draft-context';
-import { safeAudioCall, SOUND_FILES, SOUND_NAMES, SoundName } from '@/lib/sounds';
+import { getCustomSounds, removeCustomSound } from '@/lib/custom-sounds';
+import { safeAudioCall, SOUND_FILES, SOUND_NAMES } from '@/lib/sounds';
+import { CustomSound } from '@/lib/types';
 
 export default function ChooseSoundScreen() {
   const router = useRouter();
   const { draft, setDraft } = useAlarmDraft();
-  const [previewing, setPreviewing] = useState<SoundName | null>(null);
+  const [previewing, setPreviewing] = useState<string | null>(null);
+  const [customSounds, setCustomSounds] = useState<CustomSound[]>([]);
 
-  function select(name: SoundName) {
-    setDraft((d) => ({ ...d, sound: name }));
-  }
+  useFocusEffect(
+    useCallback(() => {
+      getCustomSounds().then(setCustomSounds);
+      return () => setPreviewing(null);
+    }, [])
+  );
 
-  function done() {
+  function select(value: string) {
+    setDraft((d) => ({ ...d, sound: value }));
     setPreviewing(null);
     router.back();
   }
 
+  function handleDelete(sound: CustomSound) {
+    Alert.alert('Delete This Sound?', `"${sound.name}" will be permanently deleted.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setPreviewing((p) => (p === sound.filePath ? null : p));
+          await removeCustomSound(sound);
+          if (draft.sound === sound.filePath) setDraft((d) => ({ ...d, sound: 'Classic Alarm' }));
+          setCustomSounds(await getCustomSounds());
+        },
+      },
+    ]);
+  }
+
   return (
-    <View style={styles.backdrop}>
-      <View style={styles.sheet}>
+    <Pressable style={styles.backdrop} onPress={() => router.back()}>
+      <SwipeToDismissSheet onDismiss={() => router.back()} style={styles.sheet}>
         <SafeAreaView edges={['bottom']} style={styles.safeArea}>
           <View style={styles.handle} />
           <Text style={styles.title}>Choose a Sound</Text>
-          {SOUND_NAMES.map((name) => (
-            <SoundRow
-              key={name}
-              name={name}
-              selected={draft.sound === name}
-              previewing={previewing === name}
-              onSelect={() => select(name)}
-              onTogglePreview={() => setPreviewing((p) => (p === name ? null : name))}
-            />
-          ))}
-          <Pressable style={styles.doneBtn} onPress={done}>
-            <Text style={styles.doneText}>Done</Text>
+
+          <Pressable style={styles.recordRow} onPress={() => router.push('/record-sound')}>
+            <View style={styles.recordIconWrap}>
+              <MicIcon size={16} color={Colors.accentDeep} />
+            </View>
+            <Text style={styles.recordLabel}>Record a New Sound</Text>
           </Pressable>
+
+          {customSounds.length > 0 && (
+            <>
+              <Text style={styles.sectionLabel}>Your Sounds</Text>
+              <View style={styles.grid}>
+                {customSounds.map((sound) => (
+                  <SoundRow
+                    key={sound.id}
+                    label={sound.name}
+                    source={{ uri: sound.filePath }}
+                    selected={draft.sound === sound.filePath}
+                    previewing={previewing === sound.filePath}
+                    onSelect={() => select(sound.filePath)}
+                    onTogglePreview={() =>
+                      setPreviewing((p) => (p === sound.filePath ? null : sound.filePath))
+                    }
+                    onDelete={() => handleDelete(sound)}
+                  />
+                ))}
+              </View>
+              <Text style={styles.sectionLabel}>Default Sounds</Text>
+            </>
+          )}
+
+          <View style={styles.grid}>
+            {SOUND_NAMES.map((name) => (
+              <SoundRow
+                key={name}
+                label={name}
+                source={SOUND_FILES[name]}
+                selected={draft.sound === name}
+                previewing={previewing === name}
+                onSelect={() => select(name)}
+                onTogglePreview={() => setPreviewing((p) => (p === name ? null : name))}
+              />
+            ))}
+          </View>
         </SafeAreaView>
-      </View>
-    </View>
+      </SwipeToDismissSheet>
+    </Pressable>
   );
 }
 
 function SoundRow({
-  name,
+  label,
+  source,
   selected,
   previewing,
   onSelect,
   onTogglePreview,
+  onDelete,
 }: {
-  name: SoundName;
+  label: string;
+  source: AudioSource;
   selected: boolean;
   previewing: boolean;
   onSelect: () => void;
   onTogglePreview: () => void;
+  onDelete?: () => void;
 }) {
-  const player = useAudioPlayer(SOUND_FILES[name]);
+  const player = useAudioPlayer(source);
 
   useEffect(() => {
     safeAudioCall(() => {
@@ -77,11 +137,20 @@ function SoundRow({
   useEffect(() => () => safeAudioCall(() => player.pause()), [player]);
 
   return (
-    <Pressable style={[styles.row, selected && styles.rowSelected]} onPress={onSelect}>
-      <Pressable style={styles.playBtn} onPress={onTogglePreview} hitSlop={8}>
-        <Text style={styles.playIcon}>{previewing ? '■' : '▶'}</Text>
-      </Pressable>
-      <Text style={styles.rowLabel}>{name}</Text>
+    <Pressable style={[styles.tile, selected && styles.tileSelected]} onPress={onSelect}>
+      <View style={styles.tileTop}>
+        <Pressable style={styles.playBtn} onPress={onTogglePreview} hitSlop={8}>
+          <Text style={styles.playIcon}>{previewing ? '■' : '▶'}</Text>
+        </Pressable>
+        {onDelete && (
+          <Pressable style={styles.deleteBtn} onPress={onDelete} hitSlop={8}>
+            <TrashIcon size={14} color={Colors.danger} />
+          </Pressable>
+        )}
+      </View>
+      <Text style={styles.tileLabel} numberOfLines={2}>
+        {label}
+      </Text>
       {selected && (
         <View style={styles.check}>
           <CheckIcon size={11} />
@@ -92,7 +161,7 @@ function SoundRow({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(43,36,32,0.35)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: Colors.bg,
     borderTopLeftRadius: Radii.xl,
@@ -116,19 +185,53 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
   },
-  row: {
+  recordRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    backgroundColor: Colors.accent + '1a',
+    borderRadius: Radii.md,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: Colors.accent,
+    borderStyle: 'dashed',
+  },
+  recordIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: Colors.cardBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recordLabel: { fontFamily: Fonts.bold, fontSize: 15, color: Colors.accentDeep },
+  sectionLabel: {
+    fontFamily: Fonts.bold,
+    fontSize: 12.5,
+    color: Colors.inkFaint,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 10,
+    marginBottom: 10,
+  },
+  tile: {
+    width: '48%',
     backgroundColor: Colors.cardBg,
     borderRadius: Radii.md,
     padding: 14,
-    marginBottom: 10,
     borderWidth: 2,
     borderColor: Colors.trackOff,
     ...Shadows.card,
   },
-  rowSelected: { borderColor: Colors.accent, backgroundColor: Colors.accent + '1a' },
+  tileSelected: { borderColor: Colors.accent, backgroundColor: Colors.accent + '1a' },
+  tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   playBtn: {
     width: 34,
     height: 34,
@@ -138,8 +241,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   playIcon: { fontSize: 13, color: Colors.ink },
-  rowLabel: { flex: 1, fontFamily: Fonts.bold, fontSize: 15, color: Colors.ink },
+  tileLabel: { fontFamily: Fonts.bold, fontSize: 14, color: Colors.ink, marginTop: 12 },
   check: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
     width: 20,
     height: 20,
     borderRadius: 10,
@@ -147,12 +253,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  doneBtn: {
-    marginTop: 6,
-    backgroundColor: Colors.ink,
-    paddingVertical: 15,
-    borderRadius: Radii.lg,
-    alignItems: 'center',
-  },
-  doneText: { fontFamily: Fonts.extraBold, fontSize: 15, color: '#fff' },
+  deleteBtn: { padding: 4 },
 });

@@ -13,6 +13,16 @@ export function nextBedtimeReminder(settings: AppSettings, now: Date = new Date(
   return d;
 }
 
+/** Next Date the actual bedtime itself lands on (no offset). */
+export function nextBedtime(settings: AppSettings, now: Date = new Date()): Date | null {
+  if (!settings.windDownEnabled || !settings.bedtime) return null;
+  const [hh, mm] = settings.bedtime.split(':').map(Number);
+  const d = new Date(now);
+  d.setHours(hh, mm, 0, 0);
+  if (d <= now) d.setDate(d.getDate() + 1);
+  return d;
+}
+
 export async function rescheduleWindDownNotification(settings: AppSettings): Promise<void> {
   const existing = await Notifications.getAllScheduledNotificationsAsync();
   await Promise.all(
@@ -21,18 +31,38 @@ export async function rescheduleWindDownNotification(settings: AppSettings): Pro
       .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier).catch(() => {}))
   );
 
-  const when = nextBedtimeReminder(settings);
-  if (!when) return;
+  const reminderAt = nextBedtimeReminder(settings);
+  const bedtimeAt = nextBedtime(settings);
+  if (!reminderAt && !bedtimeAt) return;
 
   const granted = (await Notifications.getPermissionsAsync()).granted;
   if (!granted) return;
 
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: 'Wind-Down time',
-      body: "Bedtime's coming up — want to start winding down?",
-      data: { type: 'wind-down' },
-    },
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: when },
-  });
+  // Two distinct notifications: an early heads-up (bedtime minus the chosen
+  // offset), and a second one right at the actual bedtime — the offset
+  // reminder alone doesn't tell you when bedtime itself actually arrives.
+  // Both share `type: 'wind-down'` so _layout.tsx's tap handler and the
+  // cancel-before-reschedule filter above treat them the same way; `kind`
+  // just distinguishes them for clarity.
+  if (reminderAt) {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Bedtime Reminder',
+        body: "Bedtime's coming up — want to start winding down?",
+        data: { type: 'wind-down', kind: 'reminder' },
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: reminderAt },
+    });
+  }
+
+  if (bedtimeAt) {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "It's bedtime",
+        body: 'Time to put the phone down and get some sleep.',
+        data: { type: 'wind-down', kind: 'bedtime' },
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: bedtimeAt },
+    });
+  }
 }

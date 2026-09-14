@@ -2,9 +2,12 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
+import { cancelAlarmKitAlarm } from '@/lib/alarmkit';
 import { getAlarms } from '@/lib/db';
+import { dedupKey, hasTriggeredToday, markTriggeredToday } from '@/lib/ring-dedup';
 import {
   DetectorHandle,
+  isFixedTimeDue,
   isWindowActiveNow,
   startMovementDetector,
   todaysDeadline,
@@ -16,20 +19,25 @@ const CHECK_INTERVAL_MS = 5000;
 type Monitored = { alarm: Alarm; detector: DetectorHandle; deadline: Date };
 
 /**
- * Foreground-only alarm monitor (see PLAN.md's Known Technical Risk
- * section — continuous background accelerometer sampling isn't reliable on
- * iOS in a managed app). While the app is in the foreground, this polls for
- * any enabled alarm whose window is currently open. Smart-Wake alarms get
- * accelerometer sampling and can ring early on movement detection; fixed-
- * time alarms (Smart Wake off) skip detection and simply ring the instant
- * their window's end time arrives. Either way, the scheduled local
- * notification (see lib/scheduling.ts) remains the backgrounded/killed-app
- * safety net.
+ * Alarm monitor. Paired with useBackgroundKeepAlive() (which keeps the JS
+ * process from being suspended while the app is backgrounded, not
+ * force-quit — see its doc comment), this interval keeps ticking and firing
+ * alarms even with the app closed to the background. Only the accelerometer
+ * side is foreground-only: CoreMotion sampling isn't reliable for
+ * third-party apps once backgrounded, so a brand-new Smart-Wake candidate
+ * only starts movement detection while active, and backgrounding stops any
+ * detector already running. The hard-deadline checks (for both fixed-time
+ * and Smart-Wake alarms) don't depend on the accelerometer at all, so they
+ * keep working regardless of foreground state.
+ *
+ * None of this survives a full force-quit (swiped away in the app
+ * switcher) — no third-party app's code runs at all once truly killed. See
+ * useLivenessHeartbeat for the general "BuzzBee is closed" warning, and
+ * PLAN.md's Known Technical Risk section for the full picture.
  */
 export function useSmartWakeMonitor() {
   const router = useRouter();
   const monitored = useRef<Monitored | null>(null);
-  const triggeredToday = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     // Read AppState fresh on every tick rather than caching it in a ref
@@ -39,16 +47,35 @@ export function useSmartWakeMonitor() {
     // transitions foreground/background afterward, the cached value would
     // never self-correct and the monitor would silently never fire.
     const appStateSub = AppState.addEventListener('change', (state) => {
+      // Stop accelerometer sampling in the background — CoreMotion updates
+      // aren't reliable for third-party apps once backgrounded — but KEEP
+      // the frozen deadline tracking, so the alarm still force-rings at its
+      // hard deadline even without movement ever being detected.
       if (state !== 'active' && monitored.current) {
         monitored.current.detector.stop();
-        monitored.current = null;
       }
     });
 
     const interval = setInterval(async () => {
-      if (AppState.currentState !== 'active') return;
       const now = new Date();
-      const todayKey = now.toISOString().slice(0, 10);
+      const alarms = await getAlarms();
+
+      // Fixed-time alarms fire directly off wall-clock time every tick,
+      // independent of the "monitored" slot below — see isFixedTimeDue()'s
+      // doc comment for why this replaced the old candidate-catching
+      // approach (it was missing real alarms).
+      for (const alarm of alarms) {
+        const key = dedupKey(alarm.id, alarm.windowEnd, now);
+        if (hasTriggeredToday(key)) continue;
+        if (isFixedTimeDue(alarm, now)) {
+          markTriggeredToday(key);
+          cancelAlarmKitAlarm(alarm.id).catch(() => {});
+          router.push({
+            pathname: '/ringing',
+            params: { alarmId: alarm.id, triggeredBy: 'hard-deadline' },
+          });
+        }
+      }
 
       if (monitored.current) {
         // The deadline is frozen at the moment monitoring started (below) —
@@ -58,10 +85,10 @@ export function useSmartWakeMonitor() {
         // day ahead and `now >= deadline` could never become true again.
         if (now >= monitored.current.deadline) {
           const alarm = monitored.current.alarm;
-          console.log('[smart-wake-monitor] deadline reached — firing ring for', alarm.id);
           monitored.current.detector.stop();
           monitored.current = null;
-          triggeredToday.current.add(`${alarm.id}:${todayKey}`);
+          markTriggeredToday(dedupKey(alarm.id, alarm.windowEnd, now));
+          cancelAlarmKitAlarm(alarm.id).catch(() => {});
           router.push({
             pathname: '/ringing',
             params: { alarmId: alarm.id, triggeredBy: 'hard-deadline' },
@@ -70,35 +97,25 @@ export function useSmartWakeMonitor() {
         return;
       }
 
-      const alarms = await getAlarms();
+      // Only Smart-Wake alarms need the candidate/detector tracking below —
+      // fixed-time alarms are handled entirely by the direct check above.
       const candidate = alarms.find(
-        (a) => isWindowActiveNow(a, now) && !triggeredToday.current.has(`${a.id}:${todayKey}`)
+        (a) =>
+          a.smartWakeEnabled &&
+          isWindowActiveNow(a, now) &&
+          !hasTriggeredToday(dedupKey(a.id, a.windowEnd, now))
       );
       if (!candidate) return;
 
-      console.log(
-        '[smart-wake-monitor] started monitoring',
-        candidate.id,
-        candidate.windowStart,
-        '-',
-        candidate.windowEnd,
-        'deadline',
-        todaysDeadline(candidate, now).toTimeString().slice(0, 8)
-      );
-
-      // Fixed-time alarms (Smart Wake off) don't get movement detection —
-      // they're still "monitored" purely so the deadline check above fires
-      // them the instant their window's end time arrives.
-      const detector = candidate.smartWakeEnabled
-        ? startMovementDetector(() => {
-            monitored.current = null;
-            triggeredToday.current.add(`${candidate.id}:${todayKey}`);
-            router.push({
-              pathname: '/ringing',
-              params: { alarmId: candidate.id, triggeredBy: 'smart-detection' },
-            });
-          })
-        : { stop: () => {} };
+      const detector = startMovementDetector(() => {
+        monitored.current = null;
+        markTriggeredToday(dedupKey(candidate.id, candidate.windowEnd));
+        cancelAlarmKitAlarm(candidate.id).catch(() => {});
+        router.push({
+          pathname: '/ringing',
+          params: { alarmId: candidate.id, triggeredBy: 'smart-detection' },
+        });
+      });
       monitored.current = { alarm: candidate, detector, deadline: todaysDeadline(candidate, now) };
     }, CHECK_INTERVAL_MS);
 

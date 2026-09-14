@@ -1,0 +1,130 @@
+diff --git a/node_modules/expo-alarm-kit/ios/ExpoAlarmKitModule.swift b/node_modules/expo-alarm-kit/ios/ExpoAlarmKitModule.swift
+index eadb113..b421cf5 100644
+--- a/node_modules/expo-alarm-kit/ios/ExpoAlarmKitModule.swift
++++ b/node_modules/expo-alarm-kit/ios/ExpoAlarmKitModule.swift
+@@ -349,31 +349,42 @@ public class ExpoAlarmKitModule: Module {
+                 systemImageName: "stop.circle"
+             )
+             
+-            // Create snooze button
+-            let snoozeLabel = options.snoozeButtonLabel ?? "Snooze"
+-            let snoozeColor = options.snoozeButtonColor != nil ? colorFromHex(options.snoozeButtonColor!) : Color.white
+-            let snoozeButton = AlarmButton(
+-                text: LocalizedStringResource(stringLiteral: snoozeLabel),
+-                textColor: snoozeColor,
+-                systemImageName: "clock.badge.checkmark"
+-            )
+-            
+-            // Create alert presentation with intent if needed
+-            let alertPresentation = AlarmPresentation.Alert(
+-                title: LocalizedStringResource(stringLiteral: options.title),
+-                stopButton: stopButton,
+-                secondaryButton: snoozeButton,
+-                secondaryButtonBehavior: .countdown
+-            )
++            // BuzzBee patch: the snooze button/behavior is opt-in only
++            // (doSnoozeIntent), not unconditional — BuzzBee's mission-gate
++            // design requires a stop-only alert by default, matching what
++            // Apple's own AlarmPresentation.Alert API supports (see the
++            // stop-only initializer already used below in
++            // scheduleTimerAlarm) and what Alarmy ships in production.
++            let alertPresentation: AlarmPresentation.Alert
++            let countdownDuration: Alarm.CountdownDuration?
++            if doSnoozeIntent {
++                let snoozeLabel = options.snoozeButtonLabel ?? "Snooze"
++                let snoozeColor = options.snoozeButtonColor != nil ? colorFromHex(options.snoozeButtonColor!) : Color.white
++                let snoozeButton = AlarmButton(
++                    text: LocalizedStringResource(stringLiteral: snoozeLabel),
++                    textColor: snoozeColor,
++                    systemImageName: "clock.badge.checkmark"
++                )
++                alertPresentation = AlarmPresentation.Alert(
++                    title: LocalizedStringResource(stringLiteral: options.title),
++                    stopButton: stopButton,
++                    secondaryButton: snoozeButton,
++                    secondaryButtonBehavior: .countdown
++                )
++                countdownDuration = Alarm.CountdownDuration(
++                    preAlert: nil,
++                    postAlert: TimeInterval(options.snoozeDuration ?? (9 * 60))
++                )
++            } else {
++                alertPresentation = AlarmPresentation.Alert(
++                    title: LocalizedStringResource(stringLiteral: options.title),
++                    stopButton: stopButton
++                )
++                countdownDuration = nil
++            }
+ 
+             let presentation = AlarmPresentation(alert: alertPresentation)
+ 
+-            // Create countdown duration for snooze
+-            let countdownDuration = Alarm.CountdownDuration(
+-                preAlert: nil,
+-                postAlert: TimeInterval(options.snoozeDuration ?? (9 * 60))
+-            )
+-            
+             // Create attributes
+             let alarmTintColor = options.tintColor != nil ? colorFromHex(options.tintColor!) : Color.blue
+             let attributes = AlarmAttributes<Meta>(
+@@ -469,31 +480,38 @@ public class ExpoAlarmKitModule: Module {
+                 systemImageName: "stop.circle"
+             )
+             
+-            // Create snooze button
+-            let snoozeLabel = options.snoozeButtonLabel ?? "Snooze"
+-            let snoozeColor = options.snoozeButtonColor != nil ? colorFromHex(options.snoozeButtonColor!) : Color.white
+-            let snoozeButton = AlarmButton(
+-                text: LocalizedStringResource(stringLiteral: snoozeLabel),
+-                textColor: snoozeColor,
+-                systemImageName: "clock.badge.checkmark"
+-            )
+-            
+-            // Create alert presentation
+-            let alertPresentation = AlarmPresentation.Alert(
+-                title: LocalizedStringResource(stringLiteral: options.title),
+-                stopButton: stopButton,
+-                secondaryButton: snoozeButton,
+-                secondaryButtonBehavior: .countdown
+-            )
++            // BuzzBee patch: see the matching comment in scheduleAlarm above —
++            // the snooze button/behavior is opt-in only (doSnoozeIntent).
++            let alertPresentation: AlarmPresentation.Alert
++            let countdownDuration: Alarm.CountdownDuration?
++            if doSnoozeIntent {
++                let snoozeLabel = options.snoozeButtonLabel ?? "Snooze"
++                let snoozeColor = options.snoozeButtonColor != nil ? colorFromHex(options.snoozeButtonColor!) : Color.white
++                let snoozeButton = AlarmButton(
++                    text: LocalizedStringResource(stringLiteral: snoozeLabel),
++                    textColor: snoozeColor,
++                    systemImageName: "clock.badge.checkmark"
++                )
++                alertPresentation = AlarmPresentation.Alert(
++                    title: LocalizedStringResource(stringLiteral: options.title),
++                    stopButton: stopButton,
++                    secondaryButton: snoozeButton,
++                    secondaryButtonBehavior: .countdown
++                )
++                countdownDuration = Alarm.CountdownDuration(
++                    preAlert: nil,
++                    postAlert: TimeInterval(options.snoozeDuration ?? (9 * 60))
++                )
++            } else {
++                alertPresentation = AlarmPresentation.Alert(
++                    title: LocalizedStringResource(stringLiteral: options.title),
++                    stopButton: stopButton
++                )
++                countdownDuration = nil
++            }
+ 
+             let presentation = AlarmPresentation(alert: alertPresentation)
+ 
+-            // Create countdown duration for snooze
+-            let countdownDuration = Alarm.CountdownDuration(
+-                preAlert: nil,
+-                postAlert: TimeInterval(options.snoozeDuration ?? (9 * 60))
+-            )
+-            
+             // Create attributes
+             let alarmTintColor = options.tintColor != nil ? colorFromHex(options.tintColor!) : Color.blue
+             let attributes = AlarmAttributes<Meta>(

@@ -1,6 +1,7 @@
 import { Picker } from '@react-native-picker/picker';
 import { useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, StyleSheet, Text, View } from 'react-native';
+import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
@@ -101,7 +102,7 @@ export function TimePickerModal({
             </View>
 
             <Pressable style={styles.doneBtn} onPress={confirm}>
-              <Text style={styles.doneText}>Done</Text>
+              <Text style={styles.doneText}>Save</Text>
             </Pressable>
           </SafeAreaView>
         </View>
