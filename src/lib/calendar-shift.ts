@@ -1,6 +1,7 @@
 import { EntityTypes, getCalendars, listEvents, requestCalendarPermissions } from 'expo-calendar';
 import * as Notifications from 'expo-notifications';
 
+import { formatTime12h } from './alarm-utils';
 import { getAlarms, getSettings, saveAlarm } from './db';
 import { scheduleAlarmNotification } from './scheduling';
 import { Alarm } from './types';
@@ -107,7 +108,7 @@ export async function runEveningCalendarCheck(now: Date = new Date()): Promise<v
       await Notifications.scheduleNotificationAsync({
         content: {
           title: 'BuzzBee shifted your alarm',
-          body: `Tomorrow's ${result.firstEventTitle} is early, so I moved your window to ${result.suggestedStart}–${result.suggestedEnd}.`,
+          body: `Tomorrow's ${result.firstEventTitle} is early, so I moved your window to ${formatTime12h(result.suggestedStart)}–${formatTime12h(result.suggestedEnd)}.`,
           data: { type: 'info' },
         },
         trigger: null,
@@ -118,8 +119,8 @@ export async function runEveningCalendarCheck(now: Date = new Date()): Promise<v
           title: 'Shift your wake window?',
           body: `Tomorrow's ${result.firstEventTitle} is at ${result.firstEventStart.toLocaleTimeString(
             [],
-            { hour: 'numeric', minute: '2-digit' }
-          )} — move your window to ${result.suggestedStart}–${result.suggestedEnd}?`,
+            { hour: 'numeric', minute: '2-digit', hour12: true }
+          )} — move your window to ${formatTime12h(result.suggestedStart)}–${formatTime12h(result.suggestedEnd)}?`,
           data: {
             type: 'calendar-nudge',
             alarmId: alarm.id,

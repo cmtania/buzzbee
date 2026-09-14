@@ -300,6 +300,29 @@ export async function getRecentWakeEvents(limit = 7): Promise<WakeEvent[]> {
   );
 }
 
+/**
+ * The most recent wake event recorded for this alarm on the given date
+ * (default today), if any. Used to stop a same-day re-save (e.g. opening an
+ * alarm from Home right after dismissing it and tapping Update, with no real
+ * change) from re-arming a second ring later that same day at the *same*
+ * time — see the doc comments on scheduleAlarmKitAlarm and
+ * computeNextDeadline. Deliberately changing the alarm to a genuinely
+ * different time later today is still honored: those call sites compare
+ * this event's recorded deadline against the alarm's *current* windowEnd,
+ * not just "did it ring today at all."
+ */
+export async function getWakeEventToday(
+  alarmId: string,
+  date = new Date().toISOString().slice(0, 10)
+): Promise<WakeEvent | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<WakeEvent>(
+    'SELECT * FROM wake_events WHERE alarmId = ? AND date = ? ORDER BY actualRingTime DESC LIMIT 1',
+    [alarmId, date]
+  );
+  return row ?? null;
+}
+
 export async function getCustomSounds(): Promise<CustomSound[]> {
   const db = await getDb();
   return db.getAllAsync<CustomSound>('SELECT * FROM custom_sounds ORDER BY createdAt ASC');

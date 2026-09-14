@@ -27,6 +27,12 @@ export function formatClock(time: string): { value: string; ampm: string } {
   return { value: `${hour12}:${String(mm).padStart(2, '0')}`, ampm };
 }
 
+/** "HH:MM" -> "6:30 AM" — for plain-text copy (notification bodies, etc.) that can't use formatClock's split value/ampm. */
+export function formatTime12h(time: string): string {
+  const { value, ampm } = formatClock(time);
+  return `${value} ${ampm}`;
+}
+
 /** Next Date this time-of-day + repeatDays pattern will occur, strictly after `from`. */
 export function nextOccurrence(time: string, repeatDays: number[], from: Date = new Date()): Date {
   const [hh, mm] = time.split(':').map(Number);
@@ -45,6 +51,20 @@ export function nextOccurrence(time: string, repeatDays: number[], from: Date = 
     if (repeatDays.includes(candidate.getDay()) && candidate > from) return candidate;
   }
   return candidateFor(7);
+}
+
+/** 23:59:59.999 on the same day as `date` — used to push a "next occurrence" search past today. */
+export function endOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+/** Whether an ISO timestamp's local hour:minute matches a "HH:MM" time string. */
+export function isoMatchesTime(iso: string, time: string): boolean {
+  const [hh, mm] = time.split(':').map(Number);
+  const d = new Date(iso);
+  return d.getHours() === hh && d.getMinutes() === mm;
 }
 
 export function countdownTo(target: Date, from: Date) {

@@ -50,6 +50,7 @@ export default function RecordSoundScreen() {
   }, [phase, recorderState.durationMillis]);
 
   useEffect(() => {
+    if (previewing) setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
     safeAudioCall(() => {
       previewPlayer.loop = true;
       if (previewing) {
@@ -79,7 +80,13 @@ export default function RecordSoundScreen() {
   async function stopRecording() {
     setRecordedDurationMs(lastDurationRef.current);
     await recorder.stop();
-    await setAudioModeAsync({ allowsRecording: false });
+    // Fully re-assert playback mode, not just flip allowsRecording off — a
+    // patch-only mode change here was silently leaving iOS's audio session
+    // unable to play anything (not just the preview below, but every sound
+    // row elsewhere in the app too) until the app was force-quit and
+    // relaunched. See the same re-assertion in the preview effect below and
+    // in choose-sound.tsx/sound-haptics-settings.tsx's SoundRow.
+    await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
     setRecordedUri(recorder.uri);
     setPhase('recorded');
   }

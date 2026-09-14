@@ -97,7 +97,7 @@ function AppShell({ initialHasOnboarded }: { initialHasOnboarded: boolean }) {
       // fresh on every cold launch, with no idea AlarmKit already handled
       // this alarm. Without marking it here, its next 5s tick sees the same
       // overdue deadline and pushes a second, duplicate /ringing screen.
-      if (alarm) markTriggeredToday(dedupKey(alarm.id, alarm.windowEnd));
+      if (alarm) markTriggeredToday(dedupKey(alarm.id));
       router.push({
         pathname: '/ringing',
         params: { alarmId, triggeredBy: 'hard-deadline' },

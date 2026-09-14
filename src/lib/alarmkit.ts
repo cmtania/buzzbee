@@ -6,10 +6,11 @@
 // functions are ever called.
 import { Platform } from 'react-native';
 
-import { nextOccurrence } from './alarm-utils';
+import { endOfDay, isoMatchesTime, nextOccurrence } from './alarm-utils';
 import {
   getAlarmKitId,
   getConfirmAlarmKitId,
+  getWakeEventToday,
   setAlarmKitId,
   setConfirmAlarmKitId,
 } from './db';
@@ -98,17 +99,43 @@ export async function scheduleAlarmKitAlarm(alarm: Alarm): Promise<void> {
     dismissPayload: alarm.id,
   };
 
+  // If this alarm already rang and was dismissed today *at this same time*,
+  // don't let a no-op re-save (e.g. opening it from Home right after
+  // dismissing and tapping Update without changing anything) re-arm a
+  // second ring later this same day — skip straight to the next valid
+  // occurrence instead. Deliberately changing the time to something later
+  // today (e.g. 8am -> 8pm) is still honored, since that no longer matches
+  // what was already dismissed. Today's weekday drops out of the *native*
+  // registration only, not alarm.repeatDays itself, so it comes back
+  // automatically once this alarm is next (re)scheduled after today.
+  const todayEvent = await getWakeEventToday(alarm.id);
+  const alreadyRangAtThisTime = !!todayEvent && isoMatchesTime(todayEvent.scheduledDeadline, alarm.windowEnd);
+  const todayWeekday = new Date().getDay();
+  const nativeWeekdays = alreadyRangAtThisTime
+    ? alarm.repeatDays.filter((d) => d !== todayWeekday)
+    : alarm.repeatDays;
+
+  if (alarm.repeatDays.length > 0 && nativeWeekdays.length === 0) {
+    // Only weekday left was today, already handled at this time — nothing
+    // to arm until this alarm is next saved/toggled.
+    return;
+  }
+
   const ok =
     alarm.repeatDays.length > 0
       ? await mod.scheduleRepeatingAlarm({
           ...shared,
           hour,
           minute,
-          weekdays: toAlarmKitWeekdays(alarm.repeatDays),
+          weekdays: toAlarmKitWeekdays(nativeWeekdays),
         })
       : await mod.scheduleAlarm({
           ...shared,
-          date: nextOccurrence(alarm.windowEnd, alarm.repeatDays),
+          date: nextOccurrence(
+            alarm.windowEnd,
+            alarm.repeatDays,
+            alreadyRangAtThisTime ? endOfDay(new Date()) : undefined
+          ),
         });
 
   if (!ok) {

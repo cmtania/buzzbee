@@ -65,7 +65,7 @@ export function useSmartWakeMonitor() {
       // doc comment for why this replaced the old candidate-catching
       // approach (it was missing real alarms).
       for (const alarm of alarms) {
-        const key = dedupKey(alarm.id, alarm.windowEnd, now);
+        const key = dedupKey(alarm.id, now);
         if (hasTriggeredToday(key)) continue;
         if (isFixedTimeDue(alarm, now)) {
           markTriggeredToday(key);
@@ -87,7 +87,7 @@ export function useSmartWakeMonitor() {
           const alarm = monitored.current.alarm;
           monitored.current.detector.stop();
           monitored.current = null;
-          markTriggeredToday(dedupKey(alarm.id, alarm.windowEnd, now));
+          markTriggeredToday(dedupKey(alarm.id, now));
           cancelAlarmKitAlarm(alarm.id).catch(() => {});
           router.push({
             pathname: '/ringing',
@@ -103,13 +103,13 @@ export function useSmartWakeMonitor() {
         (a) =>
           a.smartWakeEnabled &&
           isWindowActiveNow(a, now) &&
-          !hasTriggeredToday(dedupKey(a.id, a.windowEnd, now))
+          !hasTriggeredToday(dedupKey(a.id, now))
       );
       if (!candidate) return;
 
       const detector = startMovementDetector(() => {
         monitored.current = null;
-        markTriggeredToday(dedupKey(candidate.id, candidate.windowEnd));
+        markTriggeredToday(dedupKey(candidate.id));
         cancelAlarmKitAlarm(candidate.id).catch(() => {});
         router.push({
           pathname: '/ringing',

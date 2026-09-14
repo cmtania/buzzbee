@@ -1,9 +1,9 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
-import { nextOccurrence } from './alarm-utils';
+import { endOfDay, formatTime12h, isoMatchesTime, nextOccurrence } from './alarm-utils';
 import { cancelAlarmKitAlarm, disarmConfirmationAlarm, scheduleAlarmKitAlarm } from './alarmkit';
-import { getAlarmNotificationId, setAlarmNotificationId } from './db';
+import { getAlarmNotificationId, getWakeEventToday, setAlarmNotificationId } from './db';
 import { isSoundName, NOTIFICATION_SOUND_FILES } from './sounds';
 import { Alarm } from './types';
 
@@ -43,7 +43,14 @@ export async function scheduleAlarmNotification(alarm: Alarm): Promise<string | 
   const granted = await ensureNotificationPermission();
   if (!granted) return null;
 
-  const deadline = computeNextDeadline(alarm);
+  // Same same-day-re-save guard as scheduleAlarmKitAlarm — if today's
+  // occurrence already rang and was dismissed *at this same time*, skip
+  // straight to the next one instead of re-arming this backup notification
+  // for later today too. A deliberate time change to later today is still
+  // honored (see scheduleAlarmKitAlarm's doc comment for the full reasoning).
+  const todayEvent = await getWakeEventToday(alarm.id);
+  const alreadyRangAtThisTime = !!todayEvent && isoMatchesTime(todayEvent.scheduledDeadline, alarm.windowEnd);
+  const deadline = computeNextDeadline(alarm, alreadyRangAtThisTime ? endOfDay(new Date()) : undefined);
   // Android routes notification sound through notification channels rather
   // than this per-notification field (see expo-notifications' docs) — real
   // per-alarm custom sound there is a later-milestone item, same as the rest
@@ -52,7 +59,7 @@ export async function scheduleAlarmNotification(alarm: Alarm): Promise<string | 
   const notificationId = await Notifications.scheduleNotificationAsync({
     content: {
       title: 'BuzzBee',
-      body: `Your hard deadline (${alarm.windowEnd}) has arrived — time to wake up!`,
+      body: `Your hard deadline (${formatTime12h(alarm.windowEnd)}) has arrived — time to wake up!`,
       sound: Platform.OS === 'ios' ? iosSound : 'default',
       data: { alarmId: alarm.id, type: 'alarm-deadline' },
     },

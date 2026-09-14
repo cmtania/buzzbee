@@ -1,4 +1,4 @@
-import { AudioSource, useAudioPlayer } from 'expo-audio';
+import { AudioSource, setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
@@ -124,6 +124,10 @@ function SoundRow({
   const player = useAudioPlayer(source);
 
   useEffect(() => {
+    // Re-assert playback mode before every preview — visiting Record a New
+    // Sound leaves the audio session set up for recording, and previewing
+    // here without this would silently play nothing until the app restarts.
+    if (previewing) setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
     safeAudioCall(() => {
       if (previewing) {
         player.seekTo(0);
