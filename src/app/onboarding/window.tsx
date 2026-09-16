@@ -14,7 +14,7 @@ export default function WindowScreen() {
   const { draft, setDraft } = useAlarmDraft();
 
   return (
-    <OnboardingScreen step={3} title="Set your wake window" onContinue={() => router.push('/onboarding/repeat')}>
+    <OnboardingScreen step={2} title="Set your wake window" onContinue={() => router.push('/onboarding/repeat')}>
       <View style={styles.row}>
         <TimeStepper
           label="Earliest OK"
@@ -32,8 +32,8 @@ export default function WindowScreen() {
         />
       </View>
       <Text style={styles.hint}>
-        BuzzBee rings sometime in this range — the moment it senses light sleep, never later than
-        the deadline.
+        BuzzBee starts ringing gently right when this window opens and builds to full volume by
+        the deadline — never later than that.
       </Text>
     </OnboardingScreen>
   );

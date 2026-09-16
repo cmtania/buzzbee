@@ -1,10 +1,12 @@
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 
+import { AlarmVibration } from '@/components/alarm-ring-effects';
 import { OnboardingScreen } from '@/components/onboarding-screen';
+import { Toggle } from '@/components/toggle';
 import { Fonts, Radii, Shadows } from '@/constants/theme';
 import { useAlarmDraft } from '@/lib/alarm-draft-context';
 import { isSoundName, safeAudioCall, SOUND_FILES } from '@/lib/sounds';
@@ -15,12 +17,21 @@ const CARD_BG = '#FFFDF7';
 const ACCENT = '#F5A623';
 const ACCENT_DEEP = '#E8790A';
 
+// Same idea as the real Ringing screen's gentle-to-loud ramp (see
+// alarm-ring-effects.tsx's AlarmSoundLoop) — previewed here at a fixed short
+// duration rather than a real alarm's windowStart-to-windowEnd span, since
+// there's no window configured yet this early in onboarding.
+const ESCALATION_START_VOLUME = 0.15;
+const ESCALATION_STEP_MS = 500;
+const PREVIEW_ESCALATION_MS = 8000;
+
 export default function RingerCheckScreen() {
   const router = useRouter();
-  const { draft } = useAlarmDraft();
+  const { draft, setDraft } = useAlarmDraft();
   const [playing, setPlaying] = useState(false);
   const source = isSoundName(draft.sound) ? SOUND_FILES[draft.sound] : SOUND_FILES['Classic Alarm'];
   const player = useAudioPlayer(source);
+  const escalationInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
@@ -28,51 +39,82 @@ export default function RingerCheckScreen() {
       player.loop = true;
     });
     return () => {
+      clearEscalation();
       safeAudioCall(() => player.pause());
     };
   }, [player]);
 
+  function clearEscalation() {
+    if (escalationInterval.current) {
+      clearInterval(escalationInterval.current);
+      escalationInterval.current = null;
+    }
+  }
+
+  function stop() {
+    clearEscalation();
+    safeAudioCall(() => player.pause());
+    setPlaying(false);
+  }
+
   function toggle() {
     if (playing) {
-      safeAudioCall(() => player.pause());
-      setPlaying(false);
+      stop();
     } else {
       safeAudioCall(() => {
         player.seekTo(0);
+        player.volume = ESCALATION_START_VOLUME;
         player.play();
       });
       setPlaying(true);
+      const startedAt = Date.now();
+      escalationInterval.current = setInterval(() => {
+        const progress = Math.min(1, (Date.now() - startedAt) / PREVIEW_ESCALATION_MS);
+        safeAudioCall(() => {
+          player.volume = ESCALATION_START_VOLUME + (1 - ESCALATION_START_VOLUME) * progress;
+        });
+        if (progress >= 1) clearEscalation();
+      }, ESCALATION_STEP_MS);
     }
   }
 
   function handleContinue() {
-    safeAudioCall(() => player.pause());
-    setPlaying(false);
+    stop();
     router.push('/onboarding/summary');
   }
 
   function handleBack() {
-    safeAudioCall(() => player.pause());
-    setPlaying(false);
+    stop();
     router.back();
   }
 
   return (
     <OnboardingScreen
-      step={8}
+      step={7}
       title="Will you hear it?"
       continueLabel="I'll hear it"
       onContinue={handleContinue}
       onBack={handleBack}>
       <View style={styles.center}>
+        {playing && draft.vibrationEnabled && <AlarmVibration />}
         <Pressable style={styles.playBtn} onPress={toggle}>
           <View style={playing ? styles.stopIcon : styles.playIconWrap}>
             {!playing && <View style={styles.playTriangle} />}
           </View>
         </Pressable>
         <Text style={styles.caption}>
-          Playing at your Ringtone & Alerts volume.{'\n'}Tap to stop.
+          {playing
+            ? 'Volume is gradually increasing — just like when your alarm rings.\nTap to stop.'
+            : 'Playing at your Ringtone & Alerts volume.\nTap to stop.'}
         </Text>
+
+        <View style={[styles.tipCard, styles.vibrateRow, styles.vibrateCardSpacing]}>
+          <Text style={styles.vibrateLabel}>Vibrate</Text>
+          <Toggle
+            value={draft.vibrationEnabled}
+            onChange={(v) => setDraft((d) => ({ ...d, vibrationEnabled: v }))}
+          />
+        </View>
 
         <View style={styles.tipCard}>
           <Text style={styles.tipTitle}>Too quiet? Fix it here:</Text>
@@ -125,6 +167,9 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   stopIcon: { width: 30, height: 30, borderRadius: 5, backgroundColor: INK },
+  vibrateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  vibrateCardSpacing: { marginBottom: 14 },
+  vibrateLabel: { fontFamily: Fonts.extraBold, fontSize: 14, color: INK },
   caption: {
     fontFamily: Fonts.bold,
     fontSize: 13.5,

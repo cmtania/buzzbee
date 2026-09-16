@@ -1,52 +1,28 @@
-import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Accelerometer } from 'expo-sensors';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, Vibration, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
-import { VolumeManager } from 'react-native-volume-manager';
 
+import { AlarmSoundLoop, AlarmVibration, DeviceVolumeBoost } from '@/components/alarm-ring-effects';
 import { BackspaceIcon, WaveformIcon } from '@/components/icons';
 import { RingingWaveBackground } from '@/components/ringing-wave-background';
 import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
 import { useMicMetering } from '@/hooks/use-mic-metering';
 import { armConfirmationAlarm, disarmConfirmationAlarm } from '@/lib/alarmkit';
-import { addWakeEvent, getAlarm, getSettings } from '@/lib/db';
+import { addAlarmTrigger, addWakeEvent, getAlarm } from '@/lib/db';
+import { cancelHybridTaskChain, scheduleHybridTaskChain } from '@/lib/hybrid-tasks';
 import { cancelAlarmNotification } from '@/lib/scheduling';
-import { isCustomSoundUri, isSoundName, safeAudioCall, SOUND_FILES } from '@/lib/sounds';
-import {
-  Alarm,
-  AppSettings,
-  BUZZ_TARGET,
-  CLAP_TARGET,
-  DismissMethod,
-  SHAKE_TARGET,
-  TAP_TARGET,
-} from '@/lib/types';
+import { Alarm, BUZZ_TARGET, CLAP_TARGET, DismissMethod, SHAKE_TARGET, TAP_TARGET } from '@/lib/types';
+import { escalationDurationMs } from '@/lib/wake-window-engine';
 import { genId } from '@/lib/id';
 import { MISSION_ORDER, missionLabel } from '@/lib/mission-meta';
 
 const RANDOMIZABLE: DismissMethod[] = MISSION_ORDER.filter((m) => m !== 'random');
 const MIC_MISSIONS: DismissMethod[] = ['clap', 'buzz'];
-// A quiet bedroom typically reads well below this; a room with the TV on,
-// a partner talking, etc. tends to sit above it. Untuned placeholder like
-// the other thresholds in this file — needs real-room calibration.
-const AMBIENT_ACTIVE_THRESHOLD_DB = -28;
-// A full minute of silent listening before the alarm makes any sound — only
-// safe to do on a Smart-Wake *early* ring (see needsAmbientCheck below),
-// since there's real buffer time before the hard deadline. A hard-deadline
-// ring never gets this delay: that's the "no more slack" moment and must
-// ring immediately regardless of ambient awareness.
-const AMBIENT_CHECK_MS = 60 * 1000;
-// Gentle-escalation volume ramp (secondary differentiator #1, PLAN.md) —
-// only applied on a Smart-Wake early ring, same reasoning as the ambient
-// check above: a hard-deadline ring goes straight to full volume, no ramp.
-const ESCALATION_DURATION_MS = 75 * 1000;
-const ESCALATION_START_VOLUME = 0.15;
-const ESCALATION_STEP_MS = 500;
 // If the mission is started but sees no progress for this long, we assume
 // the person fell back asleep mid-mission: the alarm resumes ringing and
 // the mission resets to 0, rather than staying silently "in progress"
@@ -74,7 +50,7 @@ const MISSION_VERBS: Record<DismissMethod, string> = {
   random: 'Dismiss',
 };
 
-function minutesAheadOfDeadline(alarm: Alarm, now: Date): number {
+function minutesUntilDeadline(alarm: Alarm, now: Date): number {
   const [hh, mm] = alarm.windowEnd.split(':').map(Number);
   const deadline = new Date(now);
   deadline.setHours(hh, mm, 0, 0);
@@ -87,8 +63,6 @@ export default function RingingScreen() {
   const [alarm, setAlarm] = useState<Alarm | null>(null);
   const [effectiveMission, setEffectiveMission] = useState<DismissMethod | null>(null);
   const [alarmLoaded, setAlarmLoaded] = useState(!params.alarmId);
-  const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [roomActive, setRoomActive] = useState<boolean | null>(null);
   const startedAt = useRef(Date.now());
   const [now, setNow] = useState(new Date());
 
@@ -105,10 +79,6 @@ export default function RingingScreen() {
   useEffect(() => {
     const tick = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(tick);
-  }, []);
-
-  useEffect(() => {
-    getSettings().then((s) => setSettings(s));
   }, []);
 
   useEffect(() => {
@@ -130,32 +100,26 @@ export default function RingingScreen() {
         // backed by AlarmKit instead of a JS timer, for when the app
         // doesn't survive to see INACTIVITY_TIMEOUT_MS's own JS timer below.
         armConfirmationAlarm(a, CONFIRMATION_ALARM_DELAY_SEC).catch(() => {});
+        // Hybrid Alarm tasks only make sense once you're actually awake —
+        // provisionally cancel today's task notifications the moment the
+        // main alarm actually rings, and only restore them in dismiss()
+        // below if the mission genuinely gets completed. If it never does
+        // (ignored, slept through, force-quit and never reopened), they
+        // simply stay cancelled — never firing a "you're awake" reminder for
+        // a wake-up that didn't happen.
+        cancelHybridTaskChain(a.id).catch(() => {});
+        // For History's calendar: records that this alarm rang today,
+        // independent of whether the mission ever gets completed (WakeEvent
+        // is only recorded on an actual dismiss, in dismiss() below). At
+        // most one row per alarm+day regardless of how many times this
+        // effect re-runs (e.g. the confirmation-alarm re-ring above).
+        addAlarmTrigger(a.id, new Date().toISOString().slice(0, 10)).catch(() => {});
       }
       setAlarmLoaded(true);
     });
   }, [params.alarmId]);
 
-  const dataReady = alarmLoaded && settings !== null;
-
-  // Skip the ambient pre-check for Clap/Buzz — they run their own mic
-  // session for the mission itself, and iOS only supports one recorder at a
-  // time, so running both concurrently would conflict. Also only run it on
-  // a Smart-Wake *early* ring — see AMBIENT_CHECK_MS's comment for why a
-  // hard-deadline ring never gets this pre-ring delay.
-  const needsAmbientCheck =
-    dataReady &&
-    !!settings?.ambientAwarenessEnabled &&
-    !!effectiveMission &&
-    !MIC_MISSIONS.includes(effectiveMission) &&
-    params.triggeredBy === 'smart-detection';
-  const ambientCheckDone = dataReady && (!needsAmbientCheck || roomActive !== null);
-
-  // A confident "room's already active" result skips the mission/ring
-  // entirely in favor of a lighter one-tap confirmation — unless the person
-  // says the room noise was a false read and taps through to the real
-  // mission instead.
-  const [skipAmbientShortcut, setSkipAmbientShortcut] = useState(false);
-  const showAlreadyUpScreen = ambientCheckDone && !!roomActive && !skipAmbientShortcut;
+  const dataReady = alarmLoaded;
 
   // Only Clap/Buzz need the explicit Start Mission gate — they're the only
   // missions that conflict with the alarm sound (their own mic detection
@@ -165,26 +129,11 @@ export default function RingingScreen() {
   const autoStarted = useRef(false);
 
   useEffect(() => {
-    if (
-      !ambientCheckDone ||
-      !effectiveMission ||
-      needsMissionGate ||
-      autoStarted.current ||
-      showAlreadyUpScreen
-    )
-      return;
+    if (!dataReady || !effectiveMission || needsMissionGate || autoStarted.current) return;
     autoStarted.current = true;
     startMission();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ambientCheckDone, effectiveMission, needsMissionGate, showAlreadyUpScreen]);
-
-  useEffect(() => {
-    if (!ambientCheckDone) return;
-    Haptics.notificationAsync(
-      roomActive ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning
-    ).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ambientCheckDone]);
+  }, [dataReady, effectiveMission, needsMissionGate]);
 
   const clearInactivityTimer = useCallback(() => {
     if (inactivityTimer.current) {
@@ -228,7 +177,14 @@ export default function RingingScreen() {
     clearInactivityTimer();
     if (alarm) {
       await disarmConfirmationAlarm(alarm.id);
-      await cancelAlarmNotification(alarm.id);
+      // false: only clear today's already-rung instance of the main alarm —
+      // the Hybrid Alarm task chain is handled explicitly below instead of
+      // by this call (see cancelAlarmNotification's doc comment).
+      await cancelAlarmNotification(alarm.id, false);
+      // The mission is genuinely done now — restore the task chain that was
+      // provisionally cancelled the moment this alarm started ringing (see
+      // the alarm-load effect above), so today's follow-up reminders proceed.
+      await scheduleHybridTaskChain(alarm);
       const deadline = new Date();
       const [hh, mm] = alarm.windowEnd.split(':').map(Number);
       deadline.setHours(hh, mm, 0, 0);
@@ -238,7 +194,7 @@ export default function RingingScreen() {
         date: new Date().toISOString().slice(0, 10),
         scheduledDeadline: deadline.toISOString(),
         actualRingTime: new Date().toISOString(),
-        triggeredBy: params.triggeredBy === 'smart-detection' ? 'smart-detection' : 'hard-deadline',
+        triggeredBy: params.triggeredBy === 'window-start' ? 'window-start' : 'hard-deadline',
         dismissedAfterSeconds: Math.round((Date.now() - startedAt.current) / 1000),
       });
     }
@@ -253,48 +209,41 @@ export default function RingingScreen() {
   // and again if it times out from inactivity) and pauses once that
   // mission is actively being attempted, keeping their mic detection clean
   // without ever leaving the alarm silent for the person to sleep through.
-  // Never plays during the "Already up?" screen — the whole point of the
-  // ambient pre-check is to avoid the full alarm blast when it isn't needed.
   const shouldPlaySound =
-    ambientCheckDone &&
-    !!alarm &&
-    !!effectiveMission &&
-    !showAlreadyUpScreen &&
-    (!needsMissionGate || phase === 'ringing');
+    dataReady && !!alarm && !!effectiveMission && (!needsMissionGate || phase === 'ringing');
 
   // Vibration doesn't conflict with anything mic-related, so — unlike sound
   // — it keeps going through the Start-Mission gate and Clap/Buzz's mission
-  // attempts too, only stopping for the "Already up?" screen or once
-  // dismissed.
-  const shouldVibrate =
-    !!alarm?.vibrationEnabled && ambientCheckDone && !!effectiveMission && !showAlreadyUpScreen;
+  // attempts too, only stopping once dismissed.
+  const shouldVibrate = !!alarm?.vibrationEnabled && dataReady && !!effectiveMission;
 
   // Boosts the device's actual system volume (not just this app's player —
   // see DeviceVolumeBoost's comment for why that's a different thing) for
   // as long as the alarm is genuinely trying to wake someone. Same scope as
-  // vibration: stays on through the Start-Mission gate and Clap/Buzz
-  // attempts, only off during the deliberately-quiet "Already up?" screen.
-  const shouldBoostVolume = ambientCheckDone && !!effectiveMission && !showAlreadyUpScreen;
+  // vibration: stays on through the Start-Mission gate and Clap/Buzz attempts.
+  const shouldBoostVolume = dataReady && !!effectiveMission;
 
-  // Gentle escalation (secondary differentiator #1) only applies to a
-  // Smart-Wake early ring — a hard-deadline ring has no slack left and goes
+  // Gentle escalation (secondary differentiator #1): a Wake Window alarm
+  // starts quiet right when the window opens and ramps to full volume by
+  // windowEnd; a hard-deadline (fixed-time) ring has no slack left and goes
   // straight to full volume.
-  const escalate = params.triggeredBy === 'smart-detection';
+  const escalate = params.triggeredBy === 'window-start';
+  const escalationMs = alarm ? escalationDurationMs(alarm) : 0;
 
-  let statusText = 'Deadline reached';
-  if (ambientCheckDone && roomActive) {
-    statusText = "Sounds like you're already up";
-  } else if (params.triggeredBy === 'smart-detection') {
-    statusText = alarm
-      ? `Light sleep detected · ${minutesAheadOfDeadline(alarm, now)} min ahead`
-      : 'Light sleep detected';
-  }
+  const statusText =
+    params.triggeredBy === 'window-start'
+      ? alarm
+        ? `Wake Window · ${minutesUntilDeadline(alarm, now)} min until deadline`
+        : 'Wake Window'
+      : 'Deadline reached';
 
   return (
     <View style={styles.screen}>
-      {shouldPlaySound && <AlarmSoundLoop soundName={alarm!.sound} escalate={escalate} />}
+      {shouldPlaySound && (
+        <AlarmSoundLoop soundName={alarm!.sound} escalate={escalate} escalationMs={escalationMs} />
+      )}
       {shouldVibrate && <AlarmVibration />}
-      {shouldBoostVolume && <DeviceVolumeBoost escalate={escalate} />}
+      {shouldBoostVolume && <DeviceVolumeBoost escalate={escalate} escalationMs={escalationMs} />}
       <RingingWaveBackground />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.top}>
@@ -310,37 +259,17 @@ export default function RingingScreen() {
 
         <View style={styles.missionArea}>
           <View style={styles.missionBlock}>
-            {needsAmbientCheck && !ambientCheckDone && <AmbientPreCheck onResult={setRoomActive} />}
-            {showAlreadyUpScreen && (
-              <View style={styles.alreadyUpWrap}>
-                <Text style={styles.alreadyUpTitle}>Sounds like you're already up!</Text>
-                <Text style={styles.alreadyUpSub}>
-                  We heard activity in your room, so we skipped straight to a quick check instead of
-                  the full mission.
-                </Text>
-                <Pressable style={styles.alreadyUpConfirmBtn} onPress={dismiss}>
-                  <Text style={styles.alreadyUpConfirmText}>Yes, I'm up</Text>
-                </Pressable>
-                <Pressable style={styles.alreadyUpFallbackBtn} onPress={() => setSkipAmbientShortcut(true)}>
-                  <Text style={styles.alreadyUpFallbackText}>No, wake me properly</Text>
-                </Pressable>
-              </View>
-            )}
-            {ambientCheckDone && effectiveMission && !showAlreadyUpScreen && (
+            {dataReady && effectiveMission && (
               <View style={styles.eyebrow}>
                 <Text style={styles.eyebrowText}>{MISSION_VERBS[effectiveMission]}</Text>
               </View>
             )}
-            {ambientCheckDone &&
-              effectiveMission &&
-              !showAlreadyUpScreen &&
-              needsMissionGate &&
-              phase === 'ringing' && (
-                <Pressable style={styles.startBtn} onPress={startMission}>
-                  <Text style={styles.startBtnText}>Start Mission</Text>
-                </Pressable>
-              )}
-            {ambientCheckDone && effectiveMission && !showAlreadyUpScreen && phase === 'mission' && (
+            {dataReady && effectiveMission && needsMissionGate && phase === 'ringing' && (
+              <Pressable style={styles.startBtn} onPress={startMission}>
+                <Text style={styles.startBtnText}>Start Mission</Text>
+              </Pressable>
+            )}
+            {dataReady && effectiveMission && phase === 'mission' && (
               <>
                 {effectiveMission === 'math' && (
                   <MathMission key={missionAttempt} onSolved={dismiss} onActivity={noop} />
@@ -359,7 +288,7 @@ export default function RingingScreen() {
                 )}
               </>
             )}
-            {ambientCheckDone && !effectiveMission && (
+            {dataReady && !effectiveMission && (
               <Pressable style={styles.fallbackDismiss} onPress={dismiss}>
                 <Text style={styles.fallbackDismissText}>Dismiss</Text>
               </Pressable>
@@ -367,176 +296,8 @@ export default function RingingScreen() {
           </View>
         </View>
 
-        <Text style={styles.caption}>
-          {showAlreadyUpScreen
-            ? "We'll ring properly if that wasn't actually you."
-            : 'Snoozing is disabled — finish the mission to dismiss.'}
-        </Text>
+        <Text style={styles.caption}>Snoozing is disabled — finish the mission to dismiss.</Text>
       </SafeAreaView>
-    </View>
-  );
-}
-
-function AlarmSoundLoop({ soundName, escalate }: { soundName: string; escalate: boolean }) {
-  const source = isSoundName(soundName)
-    ? SOUND_FILES[soundName]
-    : isCustomSoundUri(soundName)
-      ? { uri: soundName }
-      : SOUND_FILES['Classic Alarm'];
-  const player = useAudioPlayer(source);
-
-  useEffect(() => {
-    setAudioModeAsync({
-      playsInSilentMode: true,
-      interruptionMode: 'doNotMix',
-      shouldPlayInBackground: true,
-    }).catch(() => {});
-    safeAudioCall(() => {
-      player.loop = true;
-      player.volume = escalate ? ESCALATION_START_VOLUME : 1;
-      player.play();
-    });
-
-    let interval: ReturnType<typeof setInterval> | null = null;
-    if (escalate) {
-      const startedAt = Date.now();
-      interval = setInterval(() => {
-        const progress = Math.min(1, (Date.now() - startedAt) / ESCALATION_DURATION_MS);
-        safeAudioCall(() => {
-          player.volume = ESCALATION_START_VOLUME + (1 - ESCALATION_START_VOLUME) * progress;
-        });
-        if (progress >= 1 && interval) {
-          clearInterval(interval);
-          interval = null;
-        }
-      }, ESCALATION_STEP_MS);
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-      safeAudioCall(() => player.pause());
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [player, escalate]);
-
-  return null;
-}
-
-function AlarmVibration() {
-  useEffect(() => {
-    // iOS ignores Vibration's pattern/repeat arguments (Android-only there)
-    // and only ever fires one default buzz per call — so a repeating alarm
-    // vibration on both platforms means re-triggering it on an interval
-    // ourselves, rather than relying on a single patterned call.
-    Vibration.vibrate();
-    const interval = setInterval(() => Vibration.vibrate(), 2000);
-    return () => {
-      clearInterval(interval);
-      Vibration.cancel();
-    };
-  }, []);
-
-  return null;
-}
-
-/**
- * Controls the phone's actual system/media volume for the alarm, then
- * restores whatever it was before once dismissed — distinct from
- * AlarmSoundLoop's escalation, which only ramps this app's own player
- * volume within whatever the system volume already is. iOS has no public
- * API for a third-party app to set system volume directly; this relies on
- * react-native-volume-manager's well-known (if undocumented) trick of
- * driving MPVolumeView's internal slider, same technique other alarm apps
- * use for this. `showUI: false` keeps the native volume HUD from popping up
- * during the change.
- *
- * On a hard-deadline ring (escalate=false) there's no slack left, so it
- * jumps straight to max. On a Smart-Wake early ring (escalate=true) it ramps
- * from whatever the system volume already was up to max over the same
- * window as AlarmSoundLoop's escalation, instead of jumping to max
- * instantly — the two ramps compound, so the alarm genuinely starts quiet
- * and builds rather than being loud from the first second.
- */
-function DeviceVolumeBoost({ escalate }: { escalate: boolean }) {
-  useEffect(() => {
-    let previousVolume: number | null = null;
-    let cancelled = false;
-    let interval: ReturnType<typeof setInterval> | null = null;
-
-    VolumeManager.getVolume()
-      .then((result) => {
-        if (cancelled) return;
-        previousVolume = result.volume;
-
-        if (!escalate) {
-          return VolumeManager.setVolume(1, { showUI: false });
-        }
-
-        const startVolume = result.volume;
-        const startedAt = Date.now();
-        interval = setInterval(() => {
-          const progress = Math.min(1, (Date.now() - startedAt) / ESCALATION_DURATION_MS);
-          VolumeManager.setVolume(startVolume + (1 - startVolume) * progress, {
-            showUI: false,
-          }).catch(() => {});
-          if (progress >= 1 && interval) {
-            clearInterval(interval);
-            interval = null;
-          }
-        }, ESCALATION_STEP_MS);
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-      if (interval) clearInterval(interval);
-      if (previousVolume !== null) {
-        VolumeManager.setVolume(previousVolume, { showUI: false }).catch(() => {});
-      }
-    };
-  }, [escalate]);
-
-  return null;
-}
-
-function AmbientPreCheck({ onResult }: { onResult: (roomActive: boolean) => void }) {
-  const { metering } = useMicMetering();
-  const samples = useRef<number[]>([]);
-  const reported = useRef(false);
-  const [secondsLeft, setSecondsLeft] = useState(Math.round(AMBIENT_CHECK_MS / 1000));
-
-  useEffect(() => {
-    if (metering !== null) samples.current.push(metering);
-  }, [metering]);
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (reported.current) return;
-      reported.current = true;
-      const avg = samples.current.length
-        ? samples.current.reduce((a, b) => a + b, 0) / samples.current.length
-        : -80;
-      onResult(avg > AMBIENT_ACTIVE_THRESHOLD_DB);
-    }, AMBIENT_CHECK_MS);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const startedAt = Date.now();
-    const totalSeconds = Math.round(AMBIENT_CHECK_MS / 1000);
-    const tick = setInterval(() => {
-      const remaining = totalSeconds - Math.floor((Date.now() - startedAt) / 1000);
-      setSecondsLeft(Math.max(0, remaining));
-    }, 250);
-    return () => clearInterval(tick);
-  }, []);
-
-  return (
-    <View style={styles.ambientWrap}>
-      <Text style={styles.ambientCount}>{secondsLeft}</Text>
-      <Text style={styles.ambientHint}>Checking room noise before your alarm rings…</Text>
-      <ProgressBar progress={1 - secondsLeft / Math.round(AMBIENT_CHECK_MS / 1000)} />
     </View>
   );
 }
@@ -926,16 +687,6 @@ const styles = StyleSheet.create({
   },
   tapDot: { width: 25, height: 25, borderRadius: 13, backgroundColor: '#fff' },
   hint: { fontFamily: Fonts.extraBold, fontSize: 20, color: Colors.ink, textAlign: 'center', lineHeight: 26 },
-  ambientWrap: { width: '100%', alignItems: 'center', gap: 14 },
-  ambientCount: { fontFamily: Fonts.extraBold, fontSize: 64, color: Colors.accentDeep },
-  ambientHint: {
-    fontFamily: Fonts.extraBold,
-    fontSize: 22,
-    color: Colors.ink,
-    textAlign: 'center',
-    lineHeight: 29,
-    paddingHorizontal: Spacing.md,
-  },
   mathWrap: { width: '100%', alignItems: 'center', gap: 18 },
   equation: { fontFamily: Fonts.extraBold, fontSize: 56, color: Colors.ink },
   inputDisplay: {
@@ -977,44 +728,6 @@ const styles = StyleSheet.create({
     borderRadius: Radii.lg,
   },
   fallbackDismissText: { fontFamily: Fonts.extraBold, fontSize: 14, color: '#fff' },
-  alreadyUpWrap: { width: '100%', alignItems: 'center', gap: 16 },
-  alreadyUpTitle: {
-    fontFamily: Fonts.extraBold,
-    fontSize: 28,
-    color: Colors.ink,
-    textAlign: 'center',
-    lineHeight: 34,
-  },
-  alreadyUpSub: {
-    fontFamily: Fonts.semiBold,
-    fontSize: 17,
-    color: Colors.inkSoft,
-    textAlign: 'center',
-    lineHeight: 24,
-    paddingHorizontal: 8,
-  },
-  alreadyUpConfirmBtn: {
-    marginTop: 8,
-    alignSelf: 'stretch',
-    backgroundColor: Colors.accent,
-    paddingVertical: 20,
-    borderRadius: Radii.pill,
-    alignItems: 'center',
-    shadowColor: Colors.accentDeep,
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 8,
-  },
-  alreadyUpConfirmText: { fontFamily: Fonts.extraBold, fontSize: 19, color: '#fff' },
-  alreadyUpFallbackBtn: {
-    alignSelf: 'stretch',
-    backgroundColor: Colors.ink,
-    paddingVertical: 20,
-    borderRadius: Radii.pill,
-    alignItems: 'center',
-  },
-  alreadyUpFallbackText: { fontFamily: Fonts.extraBold, fontSize: 17, color: '#fff' },
   bars: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 10, height: 100 },
   bar: { width: 15, borderRadius: 999, backgroundColor: Colors.accent },
   barDim: { backgroundColor: '#F1E7D3' },

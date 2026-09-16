@@ -45,7 +45,7 @@ export default function RepeatScreen() {
 
   return (
     <OnboardingScreen
-      step={4}
+      step={3}
       title="When should this repeat?"
       onContinue={() => router.push('/onboarding/permissions')}>
       <View style={styles.days}>

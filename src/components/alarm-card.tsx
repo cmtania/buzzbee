@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 
+import { TrashIcon } from '@/components/icons';
 import { Toggle } from '@/components/toggle';
 import { Colors, Fonts, Radii, Shadows } from '@/constants/theme';
 import { formatClock, repeatSummary } from '@/lib/alarm-utils';
@@ -9,14 +10,23 @@ import { Alarm } from '@/lib/types';
 
 export function AlarmCard({
   alarm,
+  taskCount = 0,
   onPress,
   onToggle,
   onLongPress,
+  onDelete,
 }: {
   alarm: Alarm;
+  taskCount?: number;
   onPress: () => void;
   onToggle: (next: boolean) => void;
   onLongPress?: () => void;
+  /** Always-visible delete button — a hand-rolled swipe-to-reveal gesture
+   * was tried here first, but proved genuinely buggy (the row's animated
+   * position could desync from its open/closed state after quick
+   * back-and-forth swipes, leaving the toggle stuck invisible) and was
+   * dropped in favor of this simpler, always-reachable button. */
+  onDelete: () => void;
 }) {
   const end = formatClock(alarm.windowEnd);
 
@@ -31,7 +41,7 @@ export function AlarmCard({
       </View>
       <View style={styles.main}>
         <Text style={styles.repeatLabel}>
-          {repeatSummary(alarm.repeatDays)} · {alarm.smartWakeEnabled ? 'Smart Wake' : 'Fixed time'}
+          {repeatSummary(alarm.repeatDays)} · {alarm.smartWakeEnabled ? 'Wake Window' : 'Fixed time'}
         </Text>
         {alarm.smartWakeEnabled ? (
           <Text style={styles.time}>
@@ -46,8 +56,18 @@ export function AlarmCard({
             <Text style={styles.ampm}> {end.ampm}</Text>
           </Text>
         )}
+        {taskCount > 0 && (
+          <Text style={styles.taskBadge}>
+            +{taskCount} task{taskCount === 1 ? '' : 's'}
+          </Text>
+        )}
       </View>
-      <Toggle value={alarm.enabled} onChange={onToggle} />
+      <View style={styles.actions}>
+        <Toggle value={alarm.enabled} onChange={onToggle} />
+        <Pressable style={styles.deleteBtn} onPress={onDelete} hitSlop={10}>
+          <TrashIcon size={16} color={Colors.danger} />
+        </Pressable>
+      </View>
     </Pressable>
   );
 }
@@ -94,4 +114,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.inkFaint,
   },
+  taskBadge: {
+    fontFamily: Fonts.bold,
+    fontSize: 11,
+    color: Colors.accentDeep,
+    marginTop: 3,
+  },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
+  deleteBtn: { padding: 2 },
 });

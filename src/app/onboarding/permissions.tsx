@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { BellIcon, ClockIcon, ShakeIcon } from '@/components/icons';
+import { BellIcon, ClockIcon } from '@/components/icons';
 import { OnboardingScreen } from '@/components/onboarding-screen';
 import { Fonts } from '@/constants/theme';
 import { ensureAlarmKitAuthorization } from '@/lib/alarmkit';
@@ -23,22 +23,10 @@ export default function PermissionsScreen() {
 
   return (
     <OnboardingScreen
-      step={5}
+      step={4}
       title="BuzzBee needs a couple permissions"
       continueLabel="Allow & continue"
       onContinue={() => router.push('/onboarding/features')}>
-      <View style={styles.row}>
-        <View style={styles.iconWrap}>
-          <ShakeIcon size={21} color={ACCENT_DEEP} />
-        </View>
-        <View style={styles.main}>
-          <Text style={styles.title}>Motion & Fitness</Text>
-          <Text style={styles.desc}>
-            Lets BuzzBee sense light sleep from gentle phone movement during your wake window.
-          </Text>
-        </View>
-      </View>
-
       <View style={styles.row}>
         <View style={styles.iconWrap}>
           <BellIcon size={21} color={ACCENT_DEEP} />

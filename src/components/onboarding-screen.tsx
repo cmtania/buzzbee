@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowRight, BackArrow } from '@/components/icons';
 import { Fonts, Radii, Spacing } from '@/constants/theme';
 
-export const ONBOARDING_TOTAL_STEPS = 9;
+export const ONBOARDING_TOTAL_STEPS = 8;
 
 const BG = '#F2F3F4';
 const INK = '#2B2420';

@@ -26,7 +26,7 @@ export default function HabitScreen() {
       step={1}
       title="What usually happens when your alarm goes off?"
       subtitle="Be honest — this just helps us set your defaults."
-      onContinue={() => router.push('/onboarding/science')}>
+      onContinue={() => router.push('/onboarding/window')}>
       {OPTIONS.map((label, i) => {
         const active = selected === i;
         return (

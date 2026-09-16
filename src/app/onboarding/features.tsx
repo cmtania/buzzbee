@@ -1,78 +1,61 @@
-import { requestRecordingPermissionsAsync } from 'expo-audio';
-import { requestCalendarPermissions } from 'expo-calendar';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { CalendarIcon, MoonIcon, StopwatchIcon } from '@/components/icons';
 import { OnboardingScreen } from '@/components/onboarding-screen';
-import { Toggle } from '@/components/toggle';
-import { Fonts, Radii } from '@/constants/theme';
-import { getSettings, updateSettings } from '@/lib/db';
-import { AppSettings } from '@/lib/types';
+import { Fonts } from '@/constants/theme';
 
 const INK = '#2B2420';
 const INK_FAINT = '#9C8C7A';
-const CARD_BG = '#FFFDF7';
+const ACCENT_DEEP = '#E8790A';
+const ACCENT = '#F5A623';
 
+/**
+ * Purely informational now — no toggles. Bedtime Reminder and Calendar
+ * Auto-Shift are already on by default (see DEFAULT_SETTINGS in types.ts)
+ * and adjustable anytime in Settings; Calendar Auto-Shift's own permission
+ * is requested lazily the first time the evening check actually needs it
+ * (see calendar-shift.ts), so there's nothing to request here either.
+ */
 export default function FeaturesScreen() {
   const router = useRouter();
-  const [settings, setSettings] = useState<AppSettings | null>(null);
-
-  useEffect(() => {
-    getSettings().then(setSettings);
-  }, []);
-
-  async function patch(update: Partial<AppSettings>) {
-    const next = await updateSettings(update);
-    setSettings(next);
-  }
-
-  if (!settings) return <View style={styles.loading} />;
 
   return (
     <OnboardingScreen
-      step={6}
-      title="Choose your smart features"
-      subtitle="All global — they apply across every alarm. You can change these anytime in Settings."
+      step={5}
+      title="What BuzzBee can do for you"
+      subtitle="Bedtime Reminder and Calendar Auto-Shift are on by default — you can adjust them anytime in Settings."
       onContinue={() => router.push('/onboarding/mission')}>
-      <View style={styles.card}>
-        <View style={styles.row}>
-          <View style={styles.main}>
-            <Text style={styles.title}>Bedtime Reminder</Text>
-            <Text style={styles.sub}>A calm reminder before bed.</Text>
-          </View>
-          <Toggle
-            value={settings.windDownEnabled}
-            onChange={(v) => patch({ windDownEnabled: v })}
-          />
+      <View style={styles.row}>
+        <View style={styles.iconWrap}>
+          <MoonIcon size={21} color={ACCENT_DEEP} />
         </View>
-
-        <View style={[styles.row, styles.divider]}>
-          <View style={styles.main}>
-            <Text style={styles.title}>Calendar Auto-Shift</Text>
-            <Text style={styles.sub}>Nudges your window if tomorrow starts early.</Text>
-          </View>
-          <Toggle
-            value={settings.calendarAutoShiftEnabled}
-            onChange={async (v) => {
-              if (v) await requestCalendarPermissions();
-              patch({ calendarAutoShiftEnabled: v });
-            }}
-          />
+        <View style={styles.main}>
+          <Text style={styles.title}>Bedtime Reminder</Text>
+          <Text style={styles.desc}>A calm reminder and breathing screen before bed.</Text>
         </View>
+      </View>
 
-        <View style={[styles.row, styles.divider]}>
-          <View style={styles.main}>
-            <Text style={styles.title}>Ambient Awareness</Text>
-            <Text style={styles.sub}>On-device only, never recorded or uploaded.</Text>
-          </View>
-          <Toggle
-            value={settings.ambientAwarenessEnabled}
-            onChange={async (v) => {
-              if (v) await requestRecordingPermissionsAsync();
-              patch({ ambientAwarenessEnabled: v });
-            }}
-          />
+      <View style={styles.row}>
+        <View style={styles.iconWrap}>
+          <CalendarIcon size={21} color={ACCENT_DEEP} />
+        </View>
+        <View style={styles.main}>
+          <Text style={styles.title}>Calendar Auto-Shift</Text>
+          <Text style={styles.desc}>Nudges your window the evening before, if tomorrow starts early.</Text>
+        </View>
+      </View>
+
+      <View style={[styles.row, styles.rowLast]}>
+        <View style={styles.iconWrap}>
+          <StopwatchIcon size={21} color={ACCENT_DEEP} />
+        </View>
+        <View style={styles.main}>
+          <Text style={styles.title}>Task after you’re awake</Text>
+          <Text style={styles.desc}>
+            Chain reminders after any alarm’s deadline — like “Taking a bath” or “Walk for 10
+            minutes” — each with its own time. Set it up per alarm.
+          </Text>
         </View>
       </View>
     </OnboardingScreen>
@@ -80,11 +63,25 @@ export default function FeaturesScreen() {
 }
 
 const styles = StyleSheet.create({
-  loading: { flex: 1, backgroundColor: '#F2F3F4' },
-  card: { backgroundColor: CARD_BG, borderRadius: Radii.lg, overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
-  divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E3E5E7' },
+  row: {
+    flexDirection: 'row',
+    gap: 14,
+    paddingVertical: 18,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E3E5E7',
+  },
+  rowLast: { borderBottomWidth: 0 },
+  iconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    backgroundColor: ACCENT + '26',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
   main: { flex: 1, minWidth: 0 },
-  title: { fontFamily: Fonts.bold, fontSize: 15, color: INK },
-  sub: { fontFamily: Fonts.semiBold, fontSize: 12, color: INK_FAINT, marginTop: 2, lineHeight: 16 },
+  title: { fontFamily: Fonts.extraBold, fontSize: 15, color: INK },
+  desc: { fontFamily: Fonts.semiBold, fontSize: 12.5, color: INK_FAINT, marginTop: 3, lineHeight: 18 },
 });

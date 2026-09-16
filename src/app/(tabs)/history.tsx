@@ -1,145 +1,230 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FloatingTabBar } from '@/components/floating-tab-bar';
+import { CheckIcon, ChevronRight, CloseIcon } from '@/components/icons';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
-import { getRecentWakeEvents } from '@/lib/db';
-import { WakeEvent } from '@/lib/types';
+import { DayDetail, DaySummary, getDayDetail, getMonthSummaries } from '@/lib/history-data';
 
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MAX_EARLY_MIN = 30; // scale cap for positioning the dot along the track
+const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const MONTH_LABELS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+function pad(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function toDateKey(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function keyToDate(key: string): Date {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** null cells pad the grid to a full 7-column week, before day 1 and after the month's last day. */
+function buildMonthGrid(year: number, month0: number): (Date | null)[] {
+  const firstDay = new Date(year, month0, 1);
+  const startWeekday = firstDay.getDay();
+  const daysInMonth = new Date(year, month0 + 1, 0).getDate();
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month0, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+
+function formatSelectedLabel(dateKey: string, todayKey: string): string {
+  if (dateKey === todayKey) return 'Today';
+  return keyToDate(dateKey).toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+}
 
 export default function HistoryScreen() {
-  const [events, setEvents] = useState<WakeEvent[]>([]);
+  const today = useMemo(() => new Date(), []);
+  const todayKey = useMemo(() => toDateKey(today), [today]);
+  const [viewedYear, setViewedYear] = useState(today.getFullYear());
+  const [viewedMonth, setViewedMonth] = useState(today.getMonth()); // 0-indexed
+  const [selectedDate, setSelectedDate] = useState(todayKey);
+  const [summaries, setSummaries] = useState<Record<string, DaySummary>>({});
+  const [detail, setDetail] = useState<DayDetail | null>(null);
+
+  const grid = useMemo(() => buildMonthGrid(viewedYear, viewedMonth), [viewedYear, viewedMonth]);
 
   useFocusEffect(
     useCallback(() => {
-      getRecentWakeEvents(7).then(setEvents);
-    }, [])
+      const lastDay = new Date(viewedYear, viewedMonth + 1, 0).getDate();
+      const start = `${viewedYear}-${pad(viewedMonth + 1)}-01`;
+      const end = `${viewedYear}-${pad(viewedMonth + 1)}-${pad(lastDay)}`;
+      getMonthSummaries(start, end).then(setSummaries);
+    }, [viewedYear, viewedMonth])
   );
 
-  const insight = buildInsight(events);
-  const last7 = buildLast7Days(events);
+  useFocusEffect(
+    useCallback(() => {
+      setDetail(null);
+      getDayDetail(selectedDate).then(setDetail);
+    }, [selectedDate])
+  );
+
+  function goPrevMonth() {
+    if (viewedMonth === 0) {
+      setViewedYear((y) => y - 1);
+      setViewedMonth(11);
+    } else {
+      setViewedMonth((m) => m - 1);
+    }
+  }
+
+  function goNextMonth() {
+    if (viewedMonth === 11) {
+      setViewedYear((y) => y + 1);
+      setViewedMonth(0);
+    } else {
+      setViewedMonth((m) => m + 1);
+    }
+  }
+
+  const selectedLabel = formatSelectedLabel(selectedDate, todayKey);
 
   return (
     <View style={styles.screen}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
-          <Text style={styles.eyebrow}>Last 7 days</Text>
-          <Text style={styles.h1}>Wake History</Text>
+          <Text style={styles.eyebrow}>History</Text>
+          <Text style={styles.h1}>Wake Calendar</Text>
         </View>
 
         <ScrollView contentContainerStyle={styles.body}>
-          <View style={styles.insightCard}>
-            <Text style={styles.buzzTag}>Buzz says</Text>
-            <Text style={styles.insight}>{insight}</Text>
-          </View>
-
-          <View style={styles.chartCard}>
-            <Text style={styles.chartTitle}>Wake time vs. deadline</Text>
-            <View style={styles.axisCaps}>
-              <Text style={styles.axisCapText}>Window start</Text>
-              <Text style={styles.axisCapText}>Deadline</Text>
+          <View style={styles.calendarCard}>
+            <View style={styles.monthNav}>
+              <Pressable onPress={goPrevMonth} hitSlop={10} style={styles.navBtn}>
+                <View style={styles.flipX}>
+                  <ChevronRight size={16} color={Colors.ink} />
+                </View>
+              </Pressable>
+              <Text style={styles.monthLabel}>
+                {MONTH_LABELS[viewedMonth]} {viewedYear}
+              </Text>
+              <Pressable onPress={goNextMonth} hitSlop={10} style={styles.navBtn}>
+                <ChevronRight size={16} color={Colors.ink} />
+              </Pressable>
             </View>
 
-            {last7.map((day) => (
-              <View key={day.key} style={styles.chartRow}>
-                <Text style={styles.dayLabel}>{day.label}</Text>
-                <View style={styles.track}>
-                  {day.event && (
-                    <View
+            <View style={styles.weekdayRow}>
+              {WEEKDAY_LABELS.map((w, i) => (
+                <Text key={i} style={styles.weekdayText}>
+                  {w}
+                </Text>
+              ))}
+            </View>
+
+            <View style={styles.grid}>
+              {grid.map((d, i) => {
+                if (!d) return <View key={i} style={styles.cell} />;
+                const key = toDateKey(d);
+                const summary = summaries[key];
+                const isSelected = key === selectedDate;
+                const isToday = key === todayKey;
+                return (
+                  <Pressable
+                    key={i}
+                    style={[styles.cell, isSelected && styles.cellSelected]}
+                    onPress={() => setSelectedDate(key)}>
+                    <Text
                       style={[
-                        styles.dot,
-                        {
-                          left: `${day.leftPct}%`,
-                          backgroundColor:
-                            day.event.triggeredBy === 'smart-detection'
-                              ? Colors.accent
-                              : Colors.inkFaint,
-                        },
-                      ]}
-                    />
-                  )}
-                </View>
-                <Text style={styles.value}>{day.valueLabel}</Text>
-              </View>
-            ))}
+                        styles.cellText,
+                        isToday && styles.cellTextToday,
+                        isSelected && styles.cellTextSelected,
+                      ]}>
+                      {d.getDate()}
+                    </Text>
+                    {summary && (
+                      <View
+                        style={[
+                          styles.cellDot,
+                          { backgroundColor: summary.completed ? Colors.success : Colors.danger },
+                        ]}
+                      />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
 
             <View style={styles.legendRow}>
               <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: Colors.accent }]} />
-                <Text style={styles.legendText}>Smart wake</Text>
+                <View style={[styles.legendDot, { backgroundColor: Colors.success }]} />
+                <Text style={styles.legendText}>Mission finished</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: Colors.inkFaint }]} />
-                <Text style={styles.legendText}>Deadline reached</Text>
+                <View style={[styles.legendDot, { backgroundColor: Colors.danger }]} />
+                <Text style={styles.legendText}>Rang, not finished</Text>
               </View>
             </View>
+          </View>
+
+          <View style={styles.detailCard}>
+            <Text style={styles.detailDate}>{selectedLabel}</Text>
+            {!detail ? (
+              <Text style={styles.detailEmpty}>Loading…</Text>
+            ) : detail.alarmsTriggered === 0 ? (
+              <Text style={styles.detailEmpty}>No alarms rang this day.</Text>
+            ) : (
+              <>
+                <View style={styles.statRow}>
+                  <Text style={styles.statLabel}>Alarms triggered</Text>
+                  <Text style={styles.statValue}>{detail.alarmsTriggered}</Text>
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={styles.statLabel}>Mission finished</Text>
+                  <Text style={styles.statValue}>
+                    {detail.missionsCompleted} / {detail.alarmsTriggered}
+                  </Text>
+                </View>
+
+                {detail.tasks.length > 0 && (
+                  <View style={styles.taskSection}>
+                    <Text style={styles.taskSectionLabel}>
+                      Tasks · {detail.tasks.filter((t) => t.completed).length}/{detail.tasks.length} done
+                    </Text>
+                    {detail.tasks.map((t) => (
+                      <View key={t.taskId} style={styles.taskRow}>
+                        <View
+                          style={[
+                            styles.taskIconWrap,
+                            t.completed ? styles.taskIconDone : styles.taskIconMissed,
+                          ]}>
+                          {t.completed ? (
+                            <CheckIcon size={11} color={Colors.white} />
+                          ) : (
+                            <CloseIcon size={10} color={Colors.white} />
+                          )}
+                        </View>
+                        <Text style={styles.taskLabel} numberOfLines={1}>
+                          {t.label}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
           </View>
         </ScrollView>
       </SafeAreaView>
       <FloatingTabBar />
     </View>
   );
-}
-
-function buildLast7Days(events: WakeEvent[]) {
-  const byDate = new Map(events.map((e) => [e.date, e]));
-  const days: {
-    key: string;
-    label: string;
-    event?: WakeEvent;
-    leftPct: number;
-    valueLabel: string;
-  }[] = [];
-  const today = new Date();
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
-    const event = byDate.get(key);
-
-    let leftPct = 100;
-    let valueLabel = '—';
-    if (event) {
-      if (event.triggeredBy === 'smart-detection') {
-        const earlyMin = Math.max(
-          0,
-          Math.round(
-            (new Date(event.scheduledDeadline).getTime() - new Date(event.actualRingTime).getTime()) /
-              60000
-          )
-        );
-        leftPct = (1 - Math.min(earlyMin, MAX_EARLY_MIN) / MAX_EARLY_MIN) * 100;
-        valueLabel = `${earlyMin}m early`;
-      } else {
-        leftPct = 93;
-        valueLabel = 'At deadline';
-      }
-    }
-
-    days.push({ key, label: DAY_LABELS[d.getDay()], event, leftPct, valueLabel });
-  }
-  return days;
-}
-
-function buildInsight(events: WakeEvent[]): string {
-  if (events.length === 0) {
-    return "No wake data yet — I'll have something to celebrate once you've used a Smart Wake alarm!";
-  }
-  const smartWakes = events.filter((e) => e.triggeredBy === 'smart-detection');
-  if (smartWakes.length === 0) {
-    return "You've been waking at your hard deadline lately — once Smart Wake catches a light-sleep moment, I'll ring you earlier and gentler!";
-  }
-  const avgEarly =
-    smartWakes.reduce((sum, e) => {
-      const diffMin =
-        (new Date(e.scheduledDeadline).getTime() - new Date(e.actualRingTime).getTime()) / 60000;
-      return sum + Math.max(0, diffMin);
-    }, 0) / smartWakes.length;
-  return `You beat your deadline by ${Math.round(avgEarly)} minutes on average this week!`;
 }
 
 const styles = StyleSheet.create({
@@ -149,53 +234,54 @@ const styles = StyleSheet.create({
   eyebrow: { fontFamily: Fonts.semiBold, fontSize: 13, color: Colors.inkFaint },
   h1: { fontFamily: Fonts.extraBold, fontSize: 26, color: Colors.ink, marginTop: 2 },
   body: { padding: Spacing.xxl, gap: Spacing.lg, paddingBottom: 140 },
-  insightCard: {
-    backgroundColor: Colors.accent + '33',
-    borderRadius: Radii.xl,
-    padding: 16,
-  },
-  chartCard: {
+  calendarCard: {
     backgroundColor: Colors.cardBg,
     borderRadius: Radii.xl,
-    padding: Spacing.xl,
+    padding: Spacing.lg,
     ...Shadows.card,
   },
-  chartTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: 13,
-    color: Colors.inkFaint,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: 4,
-  },
-  axisCaps: {
+  monthNav: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginLeft: 44,
-    marginRight: 60,
-    marginTop: 10,
-    marginBottom: 8,
+    paddingHorizontal: 4,
+    marginBottom: Spacing.md,
   },
-  axisCapText: {
+  navBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.trackOff,
+  },
+  flipX: { transform: [{ scaleX: -1 }] },
+  monthLabel: { fontFamily: Fonts.extraBold, fontSize: 15.5, color: Colors.ink },
+  weekdayRow: { flexDirection: 'row' },
+  weekdayText: {
+    flex: 1,
+    textAlign: 'center',
     fontFamily: Fonts.bold,
-    fontSize: 10,
+    fontSize: 11,
     color: Colors.inkFaint,
     textTransform: 'uppercase',
-    letterSpacing: 0.3,
   },
-  chartRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
-  dayLabel: { width: 34, fontFamily: Fonts.bold, fontSize: 12.5, color: Colors.inkSoft },
-  track: { flex: 1, height: 6, borderRadius: 100, backgroundColor: Colors.trackOff },
-  dot: {
-    position: 'absolute',
-    top: -4,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 3,
-    borderColor: Colors.cardBg,
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  cell: {
+    width: `${100 / 7}%`,
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
   },
-  value: { width: 74, fontFamily: Fonts.bold, fontSize: 12, color: Colors.inkFaint, textAlign: 'right' },
+  cellSelected: {
+    backgroundColor: Colors.accent + '33',
+    borderRadius: Radii.sm,
+  },
+  cellText: { fontFamily: Fonts.semiBold, fontSize: 13.5, color: Colors.ink },
+  cellTextToday: { color: Colors.accentDeep, fontFamily: Fonts.extraBold },
+  cellTextSelected: { fontFamily: Fonts.extraBold },
+  cellDot: { width: 5, height: 5, borderRadius: 2.5 },
   legendRow: {
     flexDirection: 'row',
     gap: Spacing.lg,
@@ -205,15 +291,47 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.trackOff,
   },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  legendDot: { width: 9, height: 9, borderRadius: 4.5 },
-  legendText: { fontFamily: Fonts.medium, fontSize: 12.5, color: Colors.inkSoft },
-  buzzTag: {
-    fontFamily: Fonts.extraBold,
-    fontSize: 10.5,
-    color: Colors.accentDeep,
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { fontFamily: Fonts.medium, fontSize: 11.5, color: Colors.inkSoft },
+  detailCard: {
+    backgroundColor: Colors.cardBg,
+    borderRadius: Radii.xl,
+    padding: Spacing.xl,
+    ...Shadows.card,
+  },
+  detailDate: { fontFamily: Fonts.extraBold, fontSize: 16, color: Colors.ink, marginBottom: 10 },
+  detailEmpty: { fontFamily: Fonts.semiBold, fontSize: 13.5, color: Colors.inkFaint },
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  statLabel: { fontFamily: Fonts.semiBold, fontSize: 13.5, color: Colors.inkSoft },
+  statValue: { fontFamily: Fonts.extraBold, fontSize: 13.5, color: Colors.ink },
+  taskSection: {
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.trackOff,
+    gap: 8,
+  },
+  taskSectionLabel: {
+    fontFamily: Fonts.bold,
+    fontSize: 11.5,
+    color: Colors.inkFaint,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginBottom: 2,
   },
-  insight: { fontFamily: Fonts.bold, fontSize: 13.5, color: Colors.ink, lineHeight: 19 },
+  taskRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  taskIconWrap: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  taskIconDone: { backgroundColor: Colors.success },
+  taskIconMissed: { backgroundColor: Colors.danger },
+  taskLabel: { flex: 1, fontFamily: Fonts.semiBold, fontSize: 13.5, color: Colors.ink },
 });

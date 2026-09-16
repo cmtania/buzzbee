@@ -79,12 +79,12 @@ export function countdownTo(target: Date, from: Date) {
   return { label, progress, next: target };
 }
 
-/** For Smart-Wake alarms: countdown to when the wake window opens. */
+/** For Wake Window alarms: countdown to when the wake window opens. */
 export function countdownToWindowStart(alarm: Alarm, from: Date = new Date()) {
   return countdownTo(nextOccurrence(alarm.windowStart, alarm.repeatDays, from), from);
 }
 
-/** For fixed-time alarms (Smart Wake off): countdown to when it actually rings. */
+/** For fixed-time alarms (Wake Window off): countdown to when it actually rings. */
 export function countdownToRingTime(alarm: Alarm, from: Date = new Date()) {
   return countdownTo(nextOccurrence(alarm.windowEnd, alarm.repeatDays, from), from);
 }

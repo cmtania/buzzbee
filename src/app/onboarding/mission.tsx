@@ -35,7 +35,7 @@ export default function MissionScreen() {
 
   return (
     <OnboardingScreen
-      step={7}
+      step={6}
       title="Choose your dismiss method"
       scroll={false}
       onContinue={() => router.push('/onboarding/ringer-check')}>

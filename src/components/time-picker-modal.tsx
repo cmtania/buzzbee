@@ -6,16 +6,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
 
-const HOURS = Array.from({ length: 12 }, (_, i) => i + 1); // 1..12
-const MINUTES = Array.from({ length: 60 }, (_, i) => i); // 0..59
+export const PICKER_HOURS = Array.from({ length: 12 }, (_, i) => i + 1); // 1..12
+export const PICKER_MINUTES = Array.from({ length: 60 }, (_, i) => i); // 0..59
+export function pickerTextColor(): string | undefined {
+  return Platform.OS === 'ios' ? Colors.ink : undefined;
+}
 
-function to24h(hour12: number, minute: number, ampm: 'AM' | 'PM'): string {
+export function to24h(hour12: number, minute: number, ampm: 'AM' | 'PM'): string {
   let hh = hour12 % 12;
   if (ampm === 'PM') hh += 12;
   return `${String(hh).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
-function from24h(time: string): { hour12: number; minute: number; ampm: 'AM' | 'PM' } {
+export function from24h(time: string): { hour12: number; minute: number; ampm: 'AM' | 'PM' } {
   const [h, m] = time.split(':').map(Number);
   const ampm: 'AM' | 'PM' = h >= 12 ? 'PM' : 'AM';
   const hour12 = h % 12 === 0 ? 12 : h % 12;
@@ -72,7 +75,7 @@ export function TimePickerModal({
                 itemStyle={styles.pickerItem}
                 selectedValue={hour12}
                 onValueChange={(v) => setHour12(Number(v))}>
-                {HOURS.map((h) => (
+                {PICKER_HOURS.map((h) => (
                   <Picker.Item key={h} label={String(h)} value={h} color={pickerTextColor()} />
                 ))}
               </Picker>
@@ -82,7 +85,7 @@ export function TimePickerModal({
                 itemStyle={styles.pickerItem}
                 selectedValue={minute}
                 onValueChange={(v) => setMinute(Number(v))}>
-                {MINUTES.map((m) => (
+                {PICKER_MINUTES.map((m) => (
                   <Picker.Item
                     key={m}
                     label={String(m).padStart(2, '0')}
@@ -109,10 +112,6 @@ export function TimePickerModal({
       </View>
     </Modal>
   );
-}
-
-function pickerTextColor() {
-  return Platform.OS === 'ios' ? Colors.ink : undefined;
 }
 
 const styles = StyleSheet.create({

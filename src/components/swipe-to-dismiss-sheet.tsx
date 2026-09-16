@@ -33,12 +33,18 @@ const DISMISS_VELOCITY = 0.8;
  * briefly changed to a Pressable to solve the tap-swallowing problem above —
  * the fix belongs on onStartShouldSetResponder instead, not the component
  * type).
+ *
+ * Optionally accepts a `header` slot (see its own doc comment below) to
+ * restrict the drag-to-dismiss gesture to just that region instead of the
+ * whole sheet — for a sheet with a long scrollable body where dragging
+ * inside the content to scroll shouldn't ever be misread as a dismiss swipe.
  */
 export function SwipeToDismissSheet({
   onDismiss,
   style,
   children,
   disabled,
+  header,
 }: {
   onDismiss: () => void;
   style?: StyleProp<ViewStyle>;
@@ -53,6 +59,15 @@ export function SwipeToDismissSheet({
    * value.
    */
   disabled?: boolean;
+  /**
+   * When provided, only this header content can start the swipe-to-dismiss
+   * drag — `children` renders below it as plain (non-gesture-capturing)
+   * content, so dragging inside a scrollable body (e.g. add-edit.tsx's form)
+   * never gets misread as a dismiss swipe. Both header and children still
+   * translate together as one sheet. Omit this prop (the default) for the
+   * original behavior, where the whole sheet is swipeable.
+   */
+  header?: ReactNode;
 }) {
   const translateY = useRef(new Animated.Value(0)).current;
   const disabledRef = useRef(disabled);
@@ -83,12 +98,19 @@ export function SwipeToDismissSheet({
     })
   ).current;
 
+  // A single gesture-capturing Animated.View, reused for both modes (rather
+  // than two separate JSX returns), so the pan-handlers/disabledRef access
+  // only appears once in source: it wraps `header` when provided, or
+  // `children` directly when not (the original, whole-sheet-swipeable
+  // behavior). When `header` is provided, `children` renders as a sibling
+  // outside the gesture zone entirely, so dragging inside it never starts a
+  // dismiss — both still move together via the shared `translateY` above.
   return (
-    <Animated.View
-      style={[style, { transform: [{ translateY }] }]}
-      {...pan.panHandlers}
-      onStartShouldSetResponder={() => !disabledRef.current}>
-      {children}
+    <Animated.View style={[style, { transform: [{ translateY }] }]}>
+      <Animated.View {...pan.panHandlers} onStartShouldSetResponder={() => !disabledRef.current}>
+        {header ?? children}
+      </Animated.View>
+      {header && children}
     </Animated.View>
   );
 }

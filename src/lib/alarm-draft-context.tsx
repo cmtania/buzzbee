@@ -1,11 +1,14 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 
+import { getAlarmTasks } from './db';
 import { getSettingsCache } from './settings-cache';
-import { Alarm, newAlarmDraft } from './types';
+import { Alarm, AlarmTask, newAlarmDraft } from './types';
 
 type AlarmDraftContextValue = {
   draft: Alarm;
   setDraft: React.Dispatch<React.SetStateAction<Alarm>>;
+  tasks: AlarmTask[];
+  setTasks: React.Dispatch<React.SetStateAction<AlarmTask[]>>;
   startDraft: (initial?: Alarm) => void;
 };
 
@@ -23,14 +26,24 @@ function freshDraft(): Alarm {
 
 export function AlarmDraftProvider({ children }: { children: React.ReactNode }) {
   const [draft, setDraft] = useState<Alarm>(freshDraft());
+  const [tasks, setTasks] = useState<AlarmTask[]>([]);
 
   const value = useMemo<AlarmDraftContextValue>(
     () => ({
       draft,
       setDraft,
-      startDraft: (initial) => setDraft(initial ?? freshDraft()),
+      tasks,
+      setTasks,
+      startDraft: (initial) => {
+        setDraft(initial ?? freshDraft());
+        if (initial) {
+          getAlarmTasks(initial.id).then(setTasks);
+        } else {
+          setTasks([]);
+        }
+      },
     }),
-    [draft]
+    [draft, tasks]
   );
 
   return <AlarmDraftContext.Provider value={value}>{children}</AlarmDraftContext.Provider>;

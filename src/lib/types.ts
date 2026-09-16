@@ -14,16 +14,14 @@ export type Alarm = {
   vibrationEnabled: boolean;
 };
 
-// Wind-Down / Calendar auto-shift / Ambient awareness are GLOBAL settings,
-// not per-alarm — confirmed after reviewing the Settings screen mockup.
+// Wind-Down / Calendar auto-shift are GLOBAL settings, not per-alarm —
+// confirmed after reviewing the Settings screen mockup.
 export type AppSettings = {
   windDownEnabled: boolean;
   windDownOffsetMin: number; // minutes before bedtime
   bedtime: string | null;
   calendarAutoShiftEnabled: boolean;
   autoShiftTrusted: boolean; // true = auto-apply, false = confirm-first nudge
-  ambientAwarenessEnabled: boolean;
-  simulateModeEnabled: boolean; // Simulate/Test Mode toggle
   hasOnboarded: boolean;
   hapticsEnabled: boolean; // global tap-feedback toggle, see haptic-pressable.tsx
   defaultSound: string; // used as the sound for a newly-created alarm draft
@@ -47,9 +45,65 @@ export type WakeEvent = {
   date: string; // "2026-09-12"
   scheduledDeadline: string; // ISO timestamp
   actualRingTime: string; // ISO timestamp
-  triggeredBy: 'smart-detection' | 'hard-deadline';
+  triggeredBy: 'window-start' | 'hard-deadline';
   dismissedAfterSeconds: number;
 };
+
+// Hybrid Alarm: a chain of follow-up tasks a user attaches to an alarm, each
+// with its own custom label and time, ringing (and repeating) alongside the
+// parent alarm — see PLAN.md's "Hybrid Alarm" section. One-to-many child of
+// Alarm (like WakeEvent), fetched separately by alarmId rather than embedded
+// on the Alarm type. No repeatDays of its own: a task always follows its
+// parent alarm's own repeatDays, so there's no per-task/parent drift to keep
+// in sync.
+export type AlarmTask = {
+  id: string;
+  alarmId: string;
+  label: string; // e.g. "Taking a bath" — shown in the AlarmKit alert title and the Lock Screen
+  time: string; // "HH:MM", same shape as Alarm.windowStart/windowEnd
+  sortOrder: number;
+  enabled: boolean;
+};
+
+/**
+ * Recorded the moment an alarm actually starts ringing (ringing.tsx loading
+ * it), regardless of whether the mission ever gets completed — distinct from
+ * WakeEvent, which is only recorded on a genuine dismiss. History's calendar
+ * uses the two together: an AlarmTriggerEvent with no matching WakeEvent for
+ * the same alarmId+date means the alarm rang but the mission wasn't
+ * finished. At most one row per alarmId+date (see db.ts's addAlarmTrigger).
+ */
+export type AlarmTriggerEvent = {
+  id: string;
+  alarmId: string;
+  date: string;
+  triggeredAt: string; // ISO timestamp
+};
+
+/**
+ * A user's response to "did you finish this task?", asked when they tap a
+ * Hybrid Alarm task's notification (see task-check.tsx). `label` is a
+ * snapshot of the task's label at response time, so History still reads
+ * correctly if the task is later renamed or deleted. No row at all for a
+ * given taskId+date means the notification was ignored — History treats a
+ * missing record the same as `completed: false`, so an ignored task reads as
+ * not completed without needing a separate "ignored" state.
+ */
+export type TaskEvent = {
+  id: string;
+  taskId: string;
+  alarmId: string;
+  date: string;
+  label: string;
+  completed: boolean;
+  respondedAt: string; // ISO timestamp
+};
+
+// Precautionary app-level ceiling, not a proven Apple/AlarmKit limit — this
+// wrapper has no coded or documented concurrency cap, but real AlarmKit is
+// known to have undocumented OS-level limits. Cheap to relax later once
+// tested on-device with many concurrent registrations.
+export const MAX_HYBRID_TASKS = 5;
 
 // Mission target constants (v1: fixed, not per-alarm configurable)
 export const MATH_PROBLEMS = 1;
@@ -103,13 +157,18 @@ export const DEFAULT_SETTINGS: AppSettings = {
   bedtime: null,
   calendarAutoShiftEnabled: true,
   autoShiftTrusted: false,
-  ambientAwarenessEnabled: false,
-  simulateModeEnabled: false,
   hasOnboarded: false,
   hapticsEnabled: true,
   defaultSound: 'Classic Alarm',
 };
 
+// smartWakeEnabled is the internal field name for what's shown to users as
+// "Wake Window" (renamed from "Smart Wake" once its mechanism changed from
+// accelerometer-based light-sleep detection to a plain time-based gentle-to-
+// loud ramp from windowStart to windowEnd — see wake-window-engine.ts). Kept
+// as-is rather than renamed, same pattern as windDownEnabled surviving the
+// "Wind-Down Mode" -> "Bedtime Reminder" rename: no functional reason to
+// touch the column, only the label users see.
 export function newAlarmDraft(): Alarm {
   return {
     id: '',

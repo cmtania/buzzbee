@@ -1,9 +1,37 @@
 import * as SQLite from 'expo-sqlite';
 
+import { genId } from './id';
 import { setSettingsCache } from './settings-cache';
-import { Alarm, AppSettings, CustomSound, DEFAULT_SETTINGS, DismissMethod, WakeEvent } from './types';
+import {
+  Alarm,
+  AlarmTask,
+  AlarmTriggerEvent,
+  AppSettings,
+  CustomSound,
+  DEFAULT_SETTINGS,
+  DismissMethod,
+  TaskEvent,
+  WakeEvent,
+} from './types';
 
 const DB_NAME = 'buzzbee.db';
+
+async function insertDefaultSettingsRow(db: SQLite.SQLiteDatabase): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO app_settings (id, windDownEnabled, windDownOffsetMin, bedtime, calendarAutoShiftEnabled, autoShiftTrusted, hasOnboarded, hapticsEnabled, defaultSound)
+     VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      DEFAULT_SETTINGS.windDownEnabled ? 1 : 0,
+      DEFAULT_SETTINGS.windDownOffsetMin,
+      DEFAULT_SETTINGS.bedtime,
+      DEFAULT_SETTINGS.calendarAutoShiftEnabled ? 1 : 0,
+      DEFAULT_SETTINGS.autoShiftTrusted ? 1 : 0,
+      DEFAULT_SETTINGS.hasOnboarded ? 1 : 0,
+      DEFAULT_SETTINGS.hapticsEnabled ? 1 : 0,
+      DEFAULT_SETTINGS.defaultSound,
+    ]
+  );
+}
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -41,6 +69,32 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
           filePath TEXT NOT NULL,
           createdAt TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS alarm_tasks (
+          id TEXT PRIMARY KEY NOT NULL,
+          alarmId TEXT NOT NULL,
+          label TEXT NOT NULL,
+          time TEXT NOT NULL,
+          sortOrder INTEGER NOT NULL,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          notificationId TEXT
+        );
+        CREATE TABLE IF NOT EXISTS alarm_triggers (
+          id TEXT PRIMARY KEY NOT NULL,
+          alarmId TEXT NOT NULL,
+          date TEXT NOT NULL,
+          triggeredAt TEXT NOT NULL,
+          UNIQUE(alarmId, date)
+        );
+        CREATE TABLE IF NOT EXISTS task_events (
+          id TEXT PRIMARY KEY NOT NULL,
+          taskId TEXT NOT NULL,
+          alarmId TEXT NOT NULL,
+          date TEXT NOT NULL,
+          label TEXT NOT NULL,
+          completed INTEGER NOT NULL,
+          respondedAt TEXT NOT NULL,
+          UNIQUE(taskId, date)
+        );
         CREATE TABLE IF NOT EXISTS app_settings (
           id INTEGER PRIMARY KEY CHECK (id = 1),
           windDownEnabled INTEGER NOT NULL,
@@ -48,8 +102,6 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
           bedtime TEXT,
           calendarAutoShiftEnabled INTEGER NOT NULL,
           autoShiftTrusted INTEGER NOT NULL,
-          ambientAwarenessEnabled INTEGER NOT NULL,
-          simulateModeEnabled INTEGER NOT NULL,
           hasOnboarded INTEGER NOT NULL DEFAULT 0,
           hapticsEnabled INTEGER NOT NULL DEFAULT 1,
           defaultSound TEXT NOT NULL DEFAULT 'Classic Alarm'
@@ -77,22 +129,7 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
         'SELECT id FROM app_settings WHERE id = 1'
       );
       if (!settingsRow) {
-        await db.runAsync(
-          `INSERT INTO app_settings (id, windDownEnabled, windDownOffsetMin, bedtime, calendarAutoShiftEnabled, autoShiftTrusted, ambientAwarenessEnabled, simulateModeEnabled, hasOnboarded, hapticsEnabled, defaultSound)
-           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            DEFAULT_SETTINGS.windDownEnabled ? 1 : 0,
-            DEFAULT_SETTINGS.windDownOffsetMin,
-            DEFAULT_SETTINGS.bedtime,
-            DEFAULT_SETTINGS.calendarAutoShiftEnabled ? 1 : 0,
-            DEFAULT_SETTINGS.autoShiftTrusted ? 1 : 0,
-            DEFAULT_SETTINGS.ambientAwarenessEnabled ? 1 : 0,
-            DEFAULT_SETTINGS.simulateModeEnabled ? 1 : 0,
-            DEFAULT_SETTINGS.hasOnboarded ? 1 : 0,
-            DEFAULT_SETTINGS.hapticsEnabled ? 1 : 0,
-            DEFAULT_SETTINGS.defaultSound,
-          ]
-        );
+        await insertDefaultSettingsRow(db);
       }
       return db;
     });
@@ -224,8 +261,6 @@ export async function getSettings(): Promise<AppSettings> {
     bedtime: string | null;
     calendarAutoShiftEnabled: number;
     autoShiftTrusted: number;
-    ambientAwarenessEnabled: number;
-    simulateModeEnabled: number;
     hasOnboarded: number;
     hapticsEnabled: number;
     defaultSound: string;
@@ -237,8 +272,6 @@ export async function getSettings(): Promise<AppSettings> {
     bedtime: row.bedtime,
     calendarAutoShiftEnabled: !!row.calendarAutoShiftEnabled,
     autoShiftTrusted: !!row.autoShiftTrusted,
-    ambientAwarenessEnabled: !!row.ambientAwarenessEnabled,
-    simulateModeEnabled: !!row.simulateModeEnabled,
     hasOnboarded: !!row.hasOnboarded,
     hapticsEnabled: row.hapticsEnabled == null ? true : !!row.hapticsEnabled,
     defaultSound: row.defaultSound ?? DEFAULT_SETTINGS.defaultSound,
@@ -254,8 +287,7 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
   await db.runAsync(
     `UPDATE app_settings SET
        windDownEnabled = ?, windDownOffsetMin = ?, bedtime = ?,
-       calendarAutoShiftEnabled = ?, autoShiftTrusted = ?,
-       ambientAwarenessEnabled = ?, simulateModeEnabled = ?, hasOnboarded = ?,
+       calendarAutoShiftEnabled = ?, autoShiftTrusted = ?, hasOnboarded = ?,
        hapticsEnabled = ?, defaultSound = ?
      WHERE id = 1`,
     [
@@ -264,8 +296,6 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
       next.bedtime,
       next.calendarAutoShiftEnabled ? 1 : 0,
       next.autoShiftTrusted ? 1 : 0,
-      next.ambientAwarenessEnabled ? 1 : 0,
-      next.simulateModeEnabled ? 1 : 0,
       next.hasOnboarded ? 1 : 0,
       next.hapticsEnabled ? 1 : 0,
       next.defaultSound,
@@ -306,10 +336,11 @@ export async function getRecentWakeEvents(limit = 7): Promise<WakeEvent[]> {
  * alarm from Home right after dismissing it and tapping Update, with no real
  * change) from re-arming a second ring later that same day at the *same*
  * time — see the doc comments on scheduleAlarmKitAlarm and
- * computeNextDeadline. Deliberately changing the alarm to a genuinely
+ * computeNextTrigger. Deliberately changing the alarm to a genuinely
  * different time later today is still honored: those call sites compare
- * this event's recorded deadline against the alarm's *current* windowEnd,
- * not just "did it ring today at all."
+ * this event's recorded deadline against the alarm's *current* trigger time
+ * (windowStart for a Wake Window alarm, windowEnd for a fixed-time one), not
+ * just "did it ring today at all."
  */
 export async function getWakeEventToday(
   alarmId: string,
@@ -321,6 +352,18 @@ export async function getWakeEventToday(
     [alarmId, date]
   );
   return row ?? null;
+}
+
+/** Every mission completed on this date (possibly more than one alarm). */
+export async function getWakeEventsForDate(date: string): Promise<WakeEvent[]> {
+  const db = await getDb();
+  return db.getAllAsync<WakeEvent>('SELECT * FROM wake_events WHERE date = ?', [date]);
+}
+
+/** For History's calendar month view — `start`/`end` are inclusive "YYYY-MM-DD" bounds. */
+export async function getWakeEventsInRange(start: string, end: string): Promise<WakeEvent[]> {
+  const db = await getDb();
+  return db.getAllAsync<WakeEvent>('SELECT * FROM wake_events WHERE date BETWEEN ? AND ?', [start, end]);
 }
 
 export async function getCustomSounds(): Promise<CustomSound[]> {
@@ -340,3 +383,181 @@ export async function deleteCustomSound(id: string): Promise<void> {
   const db = await getDb();
   await db.runAsync('DELETE FROM custom_sounds WHERE id = ?', [id]);
 }
+
+type AlarmTaskRow = {
+  id: string;
+  alarmId: string;
+  label: string;
+  time: string;
+  sortOrder: number;
+  enabled: number;
+};
+
+function rowToAlarmTask(row: AlarmTaskRow): AlarmTask {
+  return {
+    id: row.id,
+    alarmId: row.alarmId,
+    label: row.label,
+    time: row.time,
+    sortOrder: row.sortOrder,
+    enabled: !!row.enabled,
+  };
+}
+
+export async function getAlarmTasks(alarmId: string): Promise<AlarmTask[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<AlarmTaskRow>(
+    'SELECT * FROM alarm_tasks WHERE alarmId = ? ORDER BY sortOrder ASC',
+    [alarmId]
+  );
+  return rows.map(rowToAlarmTask);
+}
+
+export async function getAlarmTask(id: string): Promise<AlarmTask | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<AlarmTaskRow>('SELECT * FROM alarm_tasks WHERE id = ?', [id]);
+  return row ? rowToAlarmTask(row) : null;
+}
+
+/** Replaces this alarm's whole task list in one go — matches the "whole draft
+ * persisted on Save" pattern already used for the parent Alarm itself. */
+export async function replaceAlarmTasks(alarmId: string, tasks: AlarmTask[]): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM alarm_tasks WHERE alarmId = ?', [alarmId]);
+  for (const task of tasks) {
+    await db.runAsync(
+      `INSERT INTO alarm_tasks (id, alarmId, label, time, sortOrder, enabled)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [task.id, alarmId, task.label, task.time, task.sortOrder, task.enabled ? 1 : 0]
+    );
+  }
+}
+
+export async function deleteAlarmTasks(alarmId: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM alarm_tasks WHERE alarmId = ?', [alarmId]);
+}
+
+export async function setAlarmTaskNotificationId(id: string, notificationId: string | null) {
+  const db = await getDb();
+  await db.runAsync('UPDATE alarm_tasks SET notificationId = ? WHERE id = ?', [notificationId, id]);
+}
+
+export async function getAlarmTaskNotificationId(id: string): Promise<string | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ notificationId: string | null }>(
+    'SELECT notificationId FROM alarm_tasks WHERE id = ?',
+    [id]
+  );
+  return row?.notificationId ?? null;
+}
+
+/** One GROUP BY query for Home's optional "+N tasks" badge — avoids an N+1 query per alarm card. */
+export async function getAlarmTaskCounts(): Promise<Record<string, number>> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ alarmId: string; count: number }>(
+    'SELECT alarmId, COUNT(*) as count FROM alarm_tasks GROUP BY alarmId'
+  );
+  const counts: Record<string, number> = {};
+  for (const row of rows) counts[row.alarmId] = row.count;
+  return counts;
+}
+
+/**
+ * Records that this alarm actually rang today — at most one row per
+ * alarmId+date (the UNIQUE constraint + INSERT OR IGNORE means a re-ring,
+ * e.g. the confirmation-alarm safety net, doesn't create a duplicate).
+ * Distinct from WakeEvent, which only exists once the mission is completed —
+ * History's calendar compares the two to tell "rang but never finished"
+ * apart from "never rang at all" for a given day.
+ */
+export async function addAlarmTrigger(alarmId: string, date: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    'INSERT OR IGNORE INTO alarm_triggers (id, alarmId, date, triggeredAt) VALUES (?, ?, ?, ?)',
+    [genId('trigger'), alarmId, date, new Date().toISOString()]
+  );
+}
+
+export async function getAlarmTriggersForDate(date: string): Promise<AlarmTriggerEvent[]> {
+  const db = await getDb();
+  return db.getAllAsync<AlarmTriggerEvent>('SELECT * FROM alarm_triggers WHERE date = ?', [date]);
+}
+
+export async function getAlarmTriggersInRange(start: string, end: string): Promise<AlarmTriggerEvent[]> {
+  const db = await getDb();
+  return db.getAllAsync<AlarmTriggerEvent>(
+    'SELECT * FROM alarm_triggers WHERE date BETWEEN ? AND ?',
+    [start, end]
+  );
+}
+
+/**
+ * Upserts (by taskId+date) the user's response to "did you finish this
+ * task?" — see task-check.tsx, opened when a task's notification is tapped.
+ * Re-tapping the same day's notification updates the same row rather than
+ * creating a duplicate.
+ */
+export async function addTaskEvent(event: TaskEvent): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    `INSERT INTO task_events (id, taskId, alarmId, date, label, completed, respondedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(taskId, date) DO UPDATE SET
+       completed = excluded.completed,
+       respondedAt = excluded.respondedAt`,
+    [
+      event.id,
+      event.taskId,
+      event.alarmId,
+      event.date,
+      event.label,
+      event.completed ? 1 : 0,
+      event.respondedAt,
+    ]
+  );
+}
+
+export async function getTaskEvent(taskId: string, date: string): Promise<TaskEvent | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<Omit<TaskEvent, 'completed'> & { completed: number }>(
+    'SELECT * FROM task_events WHERE taskId = ? AND date = ?',
+    [taskId, date]
+  );
+  return row ? { ...row, completed: !!row.completed } : null;
+}
+
+export async function getTaskEventsForDate(date: string): Promise<TaskEvent[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<Omit<TaskEvent, 'completed'> & { completed: number }>(
+    'SELECT * FROM task_events WHERE date = ?',
+    [date]
+  );
+  return rows.map((row) => ({ ...row, completed: !!row.completed }));
+}
+
+/**
+ * Settings → Reset Data. Wipes every table this app owns and reinserts a
+ * fresh default settings row (id=1) — the same row-shape the very first
+ * launch creates in getDb() above, so the app reads as freshly installed
+ * (including hasOnboarded going back to false, sending the user through
+ * onboarding again). Callers are responsible for cancelling native
+ * AlarmKit/notification registrations *before* calling this — deleting the
+ * DB rows here doesn't reach into iOS's own scheduled-notification store,
+ * see settings.tsx's handleResetData.
+ */
+export async function resetAllData(): Promise<void> {
+  const db = await getDb();
+  await db.execAsync(`
+    DELETE FROM alarms;
+    DELETE FROM wake_events;
+    DELETE FROM custom_sounds;
+    DELETE FROM alarm_tasks;
+    DELETE FROM alarm_triggers;
+    DELETE FROM task_events;
+    DELETE FROM app_settings;
+  `);
+  await insertDefaultSettingsRow(db);
+  setSettingsCache(DEFAULT_SETTINGS);
+}
+

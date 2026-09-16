@@ -35,7 +35,7 @@ export default function SummaryScreen() {
 
   return (
     <OnboardingScreen
-      step={9}
+      step={8}
       title="You're all set"
       continueLabel={saving ? 'Setting up…' : 'Set it up'}
       continueDisabled={saving}
@@ -43,7 +43,7 @@ export default function SummaryScreen() {
       <View style={styles.card}>
         <Row label="Wake window" value={`${start.value} ${start.ampm} – ${end.value} ${end.ampm}`} />
         <Row label="Repeats" value={repeatSummary(draft.repeatDays)} />
-        <Row label="Smart Wake" value={draft.smartWakeEnabled ? 'On' : 'Off'} />
+        <Row label="Wake Window" value={draft.smartWakeEnabled ? 'On' : 'Off'} />
         <Row label="Dismiss mission" value={missionLabel(draft.dismissMethod)} last />
       </View>
       <Text style={styles.footnote}>

@@ -67,13 +67,17 @@ function toAlarmKitWeekdays(repeatDays: number[]): number[] {
 }
 
 /**
- * Schedules (or reschedules) this alarm's hard deadline through AlarmKit, so
- * it still rings — and launches BuzzBee straight to the mission screen — even
- * if the app has been fully force-quit. This is a safety net alongside the
- * existing JS Smart Wake monitor, not a replacement for it: while the app is
- * alive, an early smart-detection ring (or the fixed-time/hard-deadline ring
- * firing from JS) should cancel the pending AlarmKit alarm via
- * cancelAlarmKitAlarm() so the OS alert doesn't also fire later.
+ * Schedules (or reschedules) this alarm through AlarmKit, so it still rings —
+ * and launches BuzzBee straight to the mission screen — even if the app has
+ * been fully force-quit. A Wake Window alarm (smartWakeEnabled) is scheduled
+ * at windowStart, not windowEnd: it's meant to start ringing gently the
+ * moment the window opens and escalate to full volume by windowEnd via
+ * ringing.tsx's own timer once launched, so AlarmKit only needs to fire once,
+ * at the start. A fixed-time alarm is scheduled at windowEnd as before. This
+ * is a safety net alongside the JS wake-window monitor, not a replacement for
+ * it: while the app is alive, that monitor firing first should cancel the
+ * pending AlarmKit alarm via cancelAlarmKitAlarm() so the OS alert doesn't
+ * also fire later.
  */
 export async function scheduleAlarmKitAlarm(alarm: Alarm): Promise<void> {
   const mod = loadModule();
@@ -90,7 +94,8 @@ export async function scheduleAlarmKitAlarm(alarm: Alarm): Promise<void> {
     await setAlarmKitId(alarm.id, alarmKitId);
   }
 
-  const [hour, minute] = alarm.windowEnd.split(':').map(Number);
+  const triggerTime = alarm.smartWakeEnabled ? alarm.windowStart : alarm.windowEnd;
+  const [hour, minute] = triggerTime.split(':').map(Number);
   const shared = {
     id: alarmKitId,
     title: 'BuzzBee — time to wake up',
@@ -99,17 +104,17 @@ export async function scheduleAlarmKitAlarm(alarm: Alarm): Promise<void> {
     dismissPayload: alarm.id,
   };
 
-  // If this alarm already rang and was dismissed today *at this same time*,
-  // don't let a no-op re-save (e.g. opening it from Home right after
-  // dismissing and tapping Update without changing anything) re-arm a
-  // second ring later this same day — skip straight to the next valid
-  // occurrence instead. Deliberately changing the time to something later
-  // today (e.g. 8am -> 8pm) is still honored, since that no longer matches
-  // what was already dismissed. Today's weekday drops out of the *native*
+  // If this alarm already rang and was dismissed today *at this same
+  // trigger time*, don't let a no-op re-save (e.g. opening it from Home
+  // right after dismissing and tapping Update without changing anything)
+  // re-arm a second ring later this same day — skip straight to the next
+  // valid occurrence instead. Deliberately changing the time to something
+  // later today is still honored, since that no longer matches what was
+  // already dismissed. Today's weekday drops out of the *native*
   // registration only, not alarm.repeatDays itself, so it comes back
   // automatically once this alarm is next (re)scheduled after today.
   const todayEvent = await getWakeEventToday(alarm.id);
-  const alreadyRangAtThisTime = !!todayEvent && isoMatchesTime(todayEvent.scheduledDeadline, alarm.windowEnd);
+  const alreadyRangAtThisTime = !!todayEvent && isoMatchesTime(todayEvent.scheduledDeadline, triggerTime);
   const todayWeekday = new Date().getDay();
   const nativeWeekdays = alreadyRangAtThisTime
     ? alarm.repeatDays.filter((d) => d !== todayWeekday)
@@ -132,7 +137,7 @@ export async function scheduleAlarmKitAlarm(alarm: Alarm): Promise<void> {
       : await mod.scheduleAlarm({
           ...shared,
           date: nextOccurrence(
-            alarm.windowEnd,
+            triggerTime,
             alarm.repeatDays,
             alreadyRangAtThisTime ? endOfDay(new Date()) : undefined
           ),
@@ -152,17 +157,29 @@ export async function cancelAlarmKitAlarm(alarmId: string): Promise<void> {
   }
 }
 
+/** Reset Data (Settings) — wipes every AlarmKit registration in one native
+ * call, rather than looping cancelAlarmKitAlarm per alarm, so nothing is
+ * left behind even for an alarm whose DB row is about to be deleted anyway. */
+export function clearAllAlarmKitAlarms(): void {
+  const mod = loadModule();
+  if (!mod || !configured) return;
+  mod.clearAllAlarms();
+}
+
 /**
  * Checks whether the app was just launched by tapping an AlarmKit alert's
  * Stop button. Returns the internal Alarm.id (passed through as
  * dismissPayload when scheduling) or null. Consumes the payload — a second
  * call in the same launch returns null.
+ *
+ * Hybrid Alarm follow-up tasks never go through AlarmKit (see
+ * hybrid-tasks.ts) — they're plain local notifications only, so there's no
+ * task-launch case to handle here.
  */
 export function checkAlarmKitLaunch(): string | null {
   const mod = loadModule();
   if (!mod) return null;
-  const payload = mod.getLaunchPayload();
-  return payload?.payload ?? null;
+  return mod.getLaunchPayload()?.payload ?? null;
 }
 
 /**

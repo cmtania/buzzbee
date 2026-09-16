@@ -17,8 +17,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
 import { useBackgroundKeepAlive } from '@/hooks/use-background-keep-alive';
 import { useEveningCalendarCheck } from '@/hooks/use-evening-calendar-check';
-import { useLivenessHeartbeat } from '@/hooks/use-liveness-heartbeat';
-import { useSmartWakeMonitor } from '@/hooks/use-smart-wake-monitor';
+import { useWakeWindowMonitor } from '@/hooks/use-wake-window-monitor';
 import { AlarmDraftProvider, useAlarmDraft } from '@/lib/alarm-draft-context';
 import { checkAlarmKitLaunch, configureAlarmKit } from '@/lib/alarmkit';
 import { getAlarm, getSettings } from '@/lib/db';
@@ -66,10 +65,9 @@ function AppShell({ initialHasOnboarded }: { initialHasOnboarded: boolean }) {
   const router = useRouter();
   const { setDraft } = useAlarmDraft();
 
-  useSmartWakeMonitor();
+  useWakeWindowMonitor();
   useEveningCalendarCheck();
   useBackgroundKeepAlive();
-  useLivenessHeartbeat();
 
   // Redirect to onboarding on the very first launch, before the native
   // splash screen is hidden (see RootLayout) so Home never flashes first.
@@ -87,12 +85,15 @@ function AppShell({ initialHasOnboarded }: { initialHasOnboarded: boolean }) {
   // If the app was just launched by tapping Stop on an AlarmKit alert (the
   // app was previously force-quit — AlarmKit is what lets the alarm still
   // ring and this launch happen at all), go straight to the mission screen.
+  // Hybrid Alarm follow-up tasks never go through AlarmKit (see
+  // hybrid-tasks.ts) — they're plain notifications, so there's no
+  // task-launch case to handle here.
   useEffect(() => {
     const alarmId = checkAlarmKitLaunch();
     if (!alarmId) return;
     (async () => {
       const alarm = await getAlarm(alarmId);
-      // Mark this alarm as already-rung *before* navigating — useSmartWakeMonitor
+      // Mark this alarm as already-rung *before* navigating — useWakeWindowMonitor
       // shares this same dedup set (lib/ring-dedup.ts) and starts ticking
       // fresh on every cold launch, with no idea AlarmKit already handled
       // this alarm. Without marking it here, its next 5s tick sees the same
@@ -100,18 +101,24 @@ function AppShell({ initialHasOnboarded }: { initialHasOnboarded: boolean }) {
       if (alarm) markTriggeredToday(dedupKey(alarm.id));
       router.push({
         pathname: '/ringing',
-        params: { alarmId, triggeredBy: 'hard-deadline' },
+        params: {
+          alarmId,
+          triggeredBy: alarm?.smartWakeEnabled ? 'window-start' : 'hard-deadline',
+        },
       });
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener(async (response) => {
+    async function handleNotificationResponse(response: Notifications.NotificationResponse) {
       const data = response.notification.request.content.data as
         | {
             type?: string;
             alarmId?: string;
+            taskId?: string;
+            label?: string;
+            triggeredBy?: string;
             suggestedStart?: string;
             suggestedEnd?: string;
           }
@@ -120,23 +127,29 @@ function AppShell({ initialHasOnboarded }: { initialHasOnboarded: boolean }) {
       if (data?.type === 'alarm-deadline' && data.alarmId) {
         router.push({
           pathname: '/ringing',
-          params: { alarmId: data.alarmId, triggeredBy: 'hard-deadline' },
+          params: {
+            alarmId: data.alarmId,
+            triggeredBy: data.triggeredBy === 'window-start' ? 'window-start' : 'hard-deadline',
+          },
+        });
+        return;
+      }
+
+      // A Hybrid Alarm follow-up task's notification (see hybrid-tasks.ts) —
+      // ask whether it actually got done. Ignoring the notification instead
+      // of tapping it never reaches here at all, so no TaskEvent ever gets
+      // written for it — task-check.tsx's own doc comment covers why that's
+      // fine (History reads a missing row as "not completed").
+      if (data?.type === 'task-reminder' && data.alarmId && data.taskId) {
+        router.push({
+          pathname: '/task-check',
+          params: { alarmId: data.alarmId, taskId: data.taskId, label: data.label ?? '' },
         });
         return;
       }
 
       if (data?.type === 'wind-down') {
         router.push('/wind-down');
-        return;
-      }
-
-      if (data?.type === 'app-closed-warning') {
-        // Just reopening the app is the actual fix here — useLivenessHeartbeat
-        // and useSmartWakeMonitor (both mounted in AppShell) resume the
-        // moment the app is alive again. Landing on Home just gives the tap
-        // a sensible destination rather than leaving router state wherever
-        // it was before the app was killed.
-        router.push('/');
         return;
       }
 
@@ -151,7 +164,26 @@ function AppShell({ initialHasOnboarded }: { initialHasOnboarded: boolean }) {
           router.push('/add-edit');
         }
       }
+    }
+
+    // addNotificationResponseReceivedListener only fires for a tap that
+    // happens while this listener is already registered — it never sees the
+    // tap that cold-launched the app in the first place (e.g. tapping a
+    // Bedtime Reminder notification after the app had been fully closed all
+    // day, which is the common case for an evening notification, not an
+    // edge case). getLastNotificationResponseAsync() catches exactly that
+    // one response on startup; consumed once so a later live tap during this
+    // same session isn't replayed.
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+      // Consume it — otherwise this same response keeps coming back from
+      // every future call (Fast Refresh, or any remount of this layout
+      // during the session), re-triggering its navigation each time.
+      Notifications.clearLastNotificationResponseAsync().catch(() => {});
+      handleNotificationResponse(response);
     });
+
+    const sub = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
     return () => sub.remove();
   }, [router, setDraft]);
 
@@ -163,11 +195,11 @@ function AppShell({ initialHasOnboarded }: { initialHasOnboarded: boolean }) {
       <Stack.Screen name="choose-mission" options={{ presentation: 'transparentModal' }} />
       <Stack.Screen name="choose-sound" options={{ presentation: 'transparentModal' }} />
       <Stack.Screen name="record-sound" options={{ presentation: 'transparentModal' }} />
-      <Stack.Screen name="test-smart-wake" options={{ presentation: 'modal' }} />
       <Stack.Screen name="wind-down-settings" options={{ presentation: 'transparentModal' }} />
       <Stack.Screen name="notifications-settings" options={{ presentation: 'transparentModal' }} />
       <Stack.Screen name="sound-haptics-settings" options={{ presentation: 'transparentModal' }} />
       <Stack.Screen name="about" options={{ presentation: 'transparentModal' }} />
+      <Stack.Screen name="task-check" options={{ presentation: 'transparentModal' }} />
       <Stack.Screen name="wind-down" options={{ presentation: 'fullScreenModal' }} />
       <Stack.Screen name="ringing" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
       <Stack.Screen

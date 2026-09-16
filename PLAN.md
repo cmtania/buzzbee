@@ -8,7 +8,18 @@
 
 Clucky's whole design is: pick a fixed time, ring loud at that exact instant, force the user to solve a mission to shut it off. The mission delays snoozing, but it does nothing about *when* the alarm fires — you can be dragged out of deep sleep at a terrible moment and still ace the math problem while feeling wrecked all day. Its personality (snarky rooster, Flock social pressure, streak badges) is all about compliance *after* the alarm rings, never about *when* it should ring.
 
-## The headline differentiator: Smart Wake Window
+## The headline differentiator: Wake Window (renamed from "Smart Wake Window")
+
+> **Superseded — see "Major redesign: 'Smart Wake' → 'Wake Window'" in the changelog
+> below.** The accelerometer-based sleep-depth detection described in this section's
+> original text (kept below for the historical record) was dropped after real-device
+> testing confirmed iOS doesn't allow reliable motion sampling once the screen locks or
+> the app backgrounds — not a fixable bug, a platform restriction every phone-based
+> competitor hits. The mechanism is now purely time-based: a Wake Window alarm rings
+> gently starting at windowStart (scheduled via AlarmKit, reliable even fully
+> force-quit) and ramps to full volume by windowEnd (the hard deadline) — no sensing,
+> no foreground/screen-on requirement. The **wake window + hard deadline concept**
+> itself (vs. Clucky's single fixed time) is unchanged and remains the differentiator.
 
 Instead of one fixed time, the user sets a **wake window** (e.g. 6:30–7:00 AM) and a hard deadline (7:00 AM, never later). During that window, BuzzBee quietly samples the phone's accelerometer (phone placed on the mattress/pillow) to estimate sleep depth from movement patterns — frequent small movements and restlessness indicate light sleep, near-total stillness for extended stretches indicates deep sleep. The moment it detects a light-sleep signal inside the window, it rings. If nothing is detected, it rings at the hard deadline regardless — so the app never fails to wake you, it only ever wakes you *earlier and gentler* than the deadline.
 
@@ -310,3 +321,253 @@ Users can now record their own alarm sound and pick it anywhere the bundled tone
 - `ringing.tsx`'s in-app playback loop (`AlarmSoundLoop`) now plays a custom recording's actual file when that's the alarm's chosen sound, instead of silently falling back to Classic Alarm.
 - **Known, honest limitation**: AlarmKit's native hard-deadline ring (the one that survives a full force-quit) requires its sound to be a filename bundled into the app at build time — a user's runtime recording can't be one. So a custom sound plays correctly during in-app/backgrounded ringing and every preview, but the native AlarmKit alert itself falls back to the system default alert tone if the app is fully closed when the deadline hits. Not yet surfaced as in-app copy — worth a short caveat note near the record button if this proves confusing in testing.
 - `app.json`'s microphone permission description updated to disclose that a user's own recording is saved on-device (previously said audio is "never recorded," which was accurate before this feature and would otherwise now be misleading to reviewers).
+
+### Major redesign: "Smart Wake" → "Wake Window" — accelerometer detection dropped; Ambient Awareness removed
+
+Real-device testing surfaced a fundamental problem with Smart Wake's original mechanism
+(rolling-buffer accelerometer stddev detection, §"Smart Wake engine v1" above): iOS does
+not allow reliable third-party motion sampling once the screen locks or the app leaves
+the foreground — confirmed by testing, not just documentation. In practice this meant the
+feature only worked if the phone's screen stayed on and unlocked all night, which is not
+realistic overnight use and directly conflicts with normal battery expectations. This
+wasn't a bug to patch; it's a real Apple platform restriction every phone-based "smart
+alarm" competitor hits the same way (they cope by requiring the screen to stay on,
+plugged in, face-down on the mattress).
+
+**Decision**: rather than accept that tradeoff, the mechanism was redesigned to be purely
+time-based and fully reliable regardless of screen/app state, and renamed **"Wake
+Window"** (the toggle, the concept, everywhere user-facing) since it no longer senses
+anything. New mechanism: a Wake Window alarm's AlarmKit registration fires at
+**windowStart** instead of windowEnd — reliably, even fully force-quit, exactly like the
+existing hard-deadline path already did — and rings gently (quiet volume) rather than at
+full blast. Once the ringing screen is live, the existing gentle-escalation ramp (volume +
+system volume boost, previously a fixed 75s post-detection window) now spans the alarm's
+actual **windowStart-to-windowEnd** duration, so it builds to full volume by the hard
+deadline. A fixed-time (Wake Window off) alarm is unaffected — same single-instant ring
+as always, still scheduled at windowEnd.
+
+What changed:
+- **Removed entirely**: `lib/smart-wake-engine.ts`'s accelerometer sampling
+  (`startMovementDetector`, `isWindowActiveNow`, the stddev/consecutive-hits heuristic),
+  replaced by `lib/wake-window-engine.ts`'s `isWindowStartDue()` (a windowStart-checking
+  twin of the existing `isFixedTimeDue()`) and `escalationDurationMs()`.
+  `hooks/use-smart-wake-monitor.ts` (the AppState-aware detector-arming/resuming logic,
+  itself a fix from earlier real-device testing) is gone too — replaced by
+  `hooks/use-wake-window-monitor.ts`, now a plain wall-clock tick loop with no
+  foreground-dependent state at all.
+- **Removed entirely**: Ambient Awareness (the post-detection mic pre-check and "Sounds
+  like you're already up?" screen in `ringing.tsx`) — it was strictly downstream of the
+  now-removed motion detection and had its own reliability problems on top; already
+  shown as "Coming Soon" pre-redesign, now fully deleted from app code (Settings,
+  onboarding, `AppSettings.ambientAwarenessEnabled`), not just hidden. `expo-file-system`
+  and mic-metering infrastructure for Clap/Buzzzzz/Record Your Own Sound are unaffected.
+- **Also removed**: `useLivenessHeartbeat` (the "BuzzBee is closed" dead-man's-switch
+  notification) — its entire purpose was warning about Smart Wake's now-nonexistent
+  foreground requirement, so it's dead weight under the new mechanism.
+- **`WakeEvent.triggeredBy`**: `'smart-detection'` renamed to `'window-start'` (History
+  screen, insight copy, dedup logic) — reflects that it's now a deterministic trigger
+  point, not a probabilistic detection event.
+- **Renamed everywhere user-facing**: Add/Edit's toggle and explainer (the old
+  "needs the app open on screen" caveat is gone — no longer true, a real simplification),
+  Home's hero/empty-state copy, the alarm list card, onboarding (window/science/summary/
+  permissions screens — the onboarding permissions screen's "Motion & Fitness" row was
+  removed outright, since Shake-mission-only accelerometer access needs no OS permission
+  prompt at all), History's legend/insight text. **Internal field name kept unchanged**:
+  `Alarm.smartWakeEnabled` still means "Wake Window is on," same precedent as
+  `windDownEnabled` surviving the Bedtime Reminder rename — no functional reason to touch
+  the column, only the label.
+- **`test-smart-wake.tsx` → `test-wake-window.tsx`**: the old screen simulated the
+  accelerometer heuristic with loosened thresholds; the new one creates a real 1-minute
+  Wake Window alarm (shortest span possible given windowStart/windowEnd's minute
+  resolution) and pushes straight into the real `/ringing` screen — an authentic preview
+  of the actual mechanism, not a mock, still fast enough for App Store review to sit
+  through. Leftover preview alarms (id-prefixed) are swept up on next open.
+- **Docs updated to match** (`buzzbee-docs`: `support.html`, `privacy.html`, `terms.html`,
+  `index.html`) — removed the motion-sensing/light-sleep-detection claims and the "BuzzBee
+  is closed" notification mention, described Wake Window as the deterministic ramp it now
+  is, and fixed two unrelated stale claims caught in the same pass (Calendar Auto-Shift's
+  privacy-doc default was wrongly documented as "off," it's actually on by default).
+- **App Store assets updated**: `app-store/APP-REVIEW-GUIDE.md` and
+  `SCREEN-RECORDING-GUIDE.md` rewritten (the old Segment 2 instructed backgrounding the
+  app to demo Smart Wake, which would now fail — replaced with a segment showing a Wake
+  Window alarm surviving force-quit *and* audibly ramping from quiet to full volume);
+  promo screenshots 02/03/05/07 regenerated with the new copy/status-pill text; 04
+  (already showing Ambient Awareness as "Coming Soon" from the earlier disable) unaffected.
+- **Not touched**: `website/` and `legal/` inside this repo turned out to be stale,
+  superseded drafts that predate even the Bedtime Reminder rename and the sound-recording
+  feature — not the live site (that's the separate `buzzbee-docs` repo, which is current).
+  Worth deleting to avoid future confusion, but left alone pending a decision on that.
+
+### Major pivot #3: Hybrid Alarm — chained post-deadline tasks, the new headline differentiator
+
+Wake Window turned out to be parity-with-competitors rather than a strong hook on its own,
+so the app's headline differentiator pivoted again to **Hybrid Alarm**: after an alarm's
+hard deadline, the user can attach a chain of follow-up tasks — each with a custom label
+(e.g. "Taking a bath," "Walk for 10 minutes") and its own time — that ring on the same days
+as the parent alarm, showing that label in both the AlarmKit alert and the Lock Screen.
+Dismissing a task is a plain Stop tap, no mission, no escalation ramp.
+
+**Data model**: new `AlarmTask` type/table (`id`, `alarmId`, `label`, `time`, `sortOrder`,
+`enabled`) — a one-to-many child of `Alarm` fetched separately, same relationship shape as
+`WakeEvent`. No `repeatDays` of its own; a task always follows its parent alarm's own
+repeat days. `MAX_HYBRID_TASKS = 5` is a precautionary app-level ceiling (this AlarmKit
+wrapper has no coded/documented concurrency cap, but real AlarmKit is known to have
+undocumented OS-level limits — untested here, cheap to relax later).
+
+**Scheduling**: each task gets its own AlarmKit registration (`title` = the task's label,
+since this wrapper has no `subtitle` field) plus a backup `expo-notifications` registration
+where the label goes in `title` and a fixed "BuzzBee" goes in `subtitle` — so the Lock
+Screen shows the same bold label regardless of which path actually fires.
+`dismissPayload` is now `"<alarmId>:task:<taskId>"` for a task (a bare alarm id still means
+the main alarm — no migration needed for already-scheduled alarms), and
+`checkAlarmKitLaunch()` returns a discriminated union instead of a bare string so
+`_layout.tsx` can route a task launch straight to the new `/task-ringing` screen instead of
+the main mission screen. New `lib/hybrid-tasks.ts` hooks into `scheduling.ts`'s existing
+`scheduleAlarmNotification`/`cancelAlarmNotification` choke point, so every existing call
+site (Add/Edit save, Home's toggle/delete, `ringing.tsx`'s dismiss) cascades to a task chain
+automatically with no changes of its own.
+
+**UI**: a new "Hybrid Alarm" section in Add/Edit (below Choose a Mission) lists tasks with
+a label input + time picker per row, capped at 5 with an inline note past that; Home's
+alarm cards optionally show a "+N tasks" badge. `ringing.tsx`'s shared sound/vibration/
+volume-boost effects were extracted into `components/alarm-ring-effects.tsx` so the new
+`task-ringing.tsx` screen (big label, plain Stop button, no mission) can reuse them without
+threading task state through the already-dense main Ringing screen.
+
+**Not yet done**: on-device verification (force-quit survival and Lock Screen label parity
+specifically — can't be checked in a simulator, same as every other AlarmKit claim in this
+doc), and the matching App Store description/App Review guide/promo-screenshot pass this
+session's earlier Wake Window rename already went through.
+
+### Onboarding & Settings follow-up: Test Wake Window removed, Smart Features screen made informational
+
+Two small cleanups once Hybrid Alarm shipped:
+- **`test-wake-window.tsx` deleted outright** (not just unlinked) — its only entry point,
+  Settings → Smart Features → "Test Wake Window," was removed, so the screen became
+  unreachable dead code. The Simulate/Test Mode section above is now stale for this reason;
+  a future on-device-preview entry point (for App Store review, per that section's original
+  rationale) would need to be rebuilt fresh if wanted again.
+- **Onboarding's "Choose your smart features" screen → "What BuzzBee can do for you"**:
+  the Bedtime Reminder/Calendar Auto-Shift toggles were removed — both are already on by
+  default (`DEFAULT_SETTINGS`) and adjustable in Settings, and Calendar Auto-Shift's
+  permission was already being requested lazily on-demand by `calendar-shift.ts` regardless
+  of this screen's toggle, so nothing functional depended on the toggle existing. The screen
+  is now purely informational (icon + title + description per feature, no interactive
+  state) and gained a third row for **Hybrid Alarm**, framed as per-alarm rather than global
+  since it's configured per-alarm in Add/Edit, not in Settings.
+
+### Hybrid Alarm renamed and simplified: "Task after you're awake" — plain notification, no AlarmKit
+
+After using it, the human partner found a real problem with the design above: a follow-up
+task firing as a full AlarmKit alarm — ringing through Silent mode, launching a dedicated
+`/task-ringing` screen — read as a second alarm going off after they'd already woken up and
+dismissed the first one. That's not what a "chain a task after your deadline" feature should
+feel like; a task is a reminder for something you do once you're already awake, not another
+wake-up event. Decision: drop AlarmKit for tasks entirely and make them plain local
+notifications, nothing else — no ringing screen, no Stop button, no mission. **Superseded**
+everywhere above that describes AlarmKit-based task scheduling.
+
+What changed:
+- **Renamed**: "Hybrid Alarm" → **"Task after you're awake"**, both in Add/Edit's section
+  header and the onboarding feature row — internal identifiers (`AlarmTask`, `alarm_tasks`,
+  `hybrid-tasks.ts`) kept as-is, same precedent as `smartWakeEnabled` never being renamed
+  after becoming "Wake Window" in the UI.
+- **Removed entirely**: `scheduleAlarmKitTaskAlarm`/`cancelAlarmKitTaskAlarm` in
+  `lib/alarmkit.ts`, the `alarmKitId` column on `alarm_tasks`, `wake-window-engine.ts`'s
+  `isTaskDue()`, `use-wake-window-monitor.ts`'s task-checking block (tasks are no longer
+  something the live JS monitor pushes a screen for), and the `/task-ringing` screen/route
+  entirely (deleted, not just unlinked — same treatment as `test-wake-window.tsx` earlier).
+  `checkAlarmKitLaunch()` reverts to its original plain `string | null` return — the
+  discriminated-union/`:task:`-payload-marker design it briefly had is gone, since no task
+  ever produces an AlarmKit launch anymore.
+- **What's left**: `lib/hybrid-tasks.ts`'s `scheduleHybridTaskChain`/`cancelHybridTaskChain`
+  now only schedule/cancel each task's `expo-notifications` local notification (label in
+  `title`, "BuzzBee" in `subtitle`, same Lock Screen treatment as before) — still hooked into
+  `scheduling.ts`'s `scheduleAlarmNotification`/`cancelAlarmNotification` choke point, so
+  every existing call site still cascades to the task chain with no changes of its own.
+  Tapping the notification just opens the app normally now; no special routing.
+- **Add/Edit UI unaffected**: the task list, `HybridTaskModal` (add/edit task with a
+  keyboard-avoiding label + time-picker modal, clamped to always stay after the alarm's
+  deadline), and the 5-task cap all work exactly as before — only the firing mechanism
+  changed, not how a task is created or edited.
+
+**Bug found right after this shipped: task notifications never fired at all.** Root cause:
+`ringing.tsx`'s `dismiss()` (runs every time any alarm's mission is completed) calls
+`cancelAlarmNotification(alarm.id)` — meant only to clear *today's already-rung* instance of
+the main alarm, not to disable it — but that function unconditionally cancelled the whole
+Hybrid Alarm task chain too (added when tasks were still AlarmKit-based, so cancel-then-
+reschedule made sense there). Since tasks are scheduled to fire *after* the deadline, and
+`dismiss()` runs *before* that time, every task got cancelled moments after the main alarm
+rang, before it ever had a chance to fire — 100% of the time, not a timing-dependent flake.
+**Fix**: `cancelAlarmNotification(alarmId, cancelTasks = true)` gained a second parameter;
+the five genuine disable/delete call sites (Home's toggle-off/delete-all, add-edit's
+disable/delete) keep the default `true`, and `ringing.tsx`'s `dismiss()` now explicitly
+passes `false` so a task's notification survives its parent alarm being dismissed.
+
+**Follow-up condition, requested once the above was working**: a task should only ever fire
+if the person actually got up — not if the main alarm rang and was simply ignored/slept
+through. Implemented as cancel-on-ring, restore-on-dismiss rather than a timeout-based
+"did they finish in time?" check (no reliable way to run JS on a schedule once the app is
+killed, so a delayed cancel isn't implementable the same way `armConfirmationAlarm`'s 90s
+re-ring is — that one re-rings *unconditionally* via AlarmKit itself, it doesn't need to
+evaluate anything at the 90s mark):
+- The moment `ringing.tsx` loads the alarm (covers all three ways a ring can start: the JS
+  monitor, an AlarmKit cold-launch, or a tapped backup notification), it provisionally calls
+  `cancelHybridTaskChain(alarm.id)` — today's task notifications are pulled immediately.
+- `dismiss()` (mission genuinely completed) calls `scheduleHybridTaskChain(alarm)` right
+  after, restoring them.
+- If the mission is never completed — ignored, slept through, or the app is force-quit and
+  never reopened to retry — nothing ever calls the restore step, so the tasks simply stay
+  cancelled for that day. They come back automatically the next day this alarm is due,
+  since each ring/dismiss cycle repeats this same cancel/restore pair independently.
+
+### Task completion tracking + History rebuilt as a calendar
+
+Two related asks: (1) tapping a task's notification should ask whether it actually got done,
+recording that response rather than just opening the app; (2) History's 7-day dot chart
+becomes a real calendar — tap any date to see whether the mission was finished that day, how
+many alarms rang, and which tasks were completed.
+
+**New data**: `AlarmTriggerEvent` (`alarm_triggers` table, UNIQUE(alarmId, date)) records
+that an alarm rang, independent of whether the mission was ever finished — `WakeEvent`
+(existing) still only records a genuine dismiss. Written in `ringing.tsx`'s alarm-load effect,
+the same spot that already provisionally cancels the task chain (see above). `TaskEvent`
+(`task_events` table, UNIQUE(taskId, date)) records the user's yes/no answer to "did you
+finish this?" — written only from the new `task-check.tsx` screen, never inferred. **Ignoring
+a task's notification writes nothing**: History treats a missing TaskEvent row the same as
+`completed: false`, so "ignored" and "answered no" read identically without needing a
+separate state or any background job to detect a non-response.
+
+**Notification tap flow**: `hybrid-tasks.ts`'s task notification now carries `label` in its
+`data` payload; `_layout.tsx`'s notification-response handler routes `type: 'task-reminder'`
+to `/task-check` (a small centered "Did you finish this? / Not yet / Done!" dialog) instead
+of leaving it unhandled. Either answer calls `db.ts`'s `addTaskEvent` (upserts by taskId+date,
+so re-tapping the same day's notification updates rather than duplicates).
+
+**History**: `lib/history-data.ts` is new — `getMonthSummaries(start, end)` (two cheap range
+queries, used for the whole visible month's calendar dots: green = mission completed that
+day, red = rang but wasn't) and `getDayDetail(date)` (fetched only for the selected day, since
+it needs per-alarm task lookups: alarms triggered count, missions-completed count, and each
+task's completed/not status for alarms that were actually dismissed that day — a task chain
+that never restored, per the cancel-on-ring/restore-on-dismiss logic above, has nothing to
+report). `history.tsx` is a full rewrite: a month-grid calendar (prev/next navigation, tap a
+date to select it) above a detail card for the selected day. The old 7-day dot-on-track chart
+and its "Buzz says" rolling-average insight line are gone, superseded by this.
+
+### Settings → Reset Data
+
+A full local wipe, for testing and for users who just want a clean slate without deleting and
+reinstalling the app. `db.ts`'s `resetAllData()` deletes every row from every table this app
+owns (alarms, wake_events, custom_sounds, alarm_tasks, alarm_triggers, task_events,
+app_settings) and reinserts a fresh default settings row — the same shape a brand-new install
+gets, `hasOnboarded: false` included, so the app runs onboarding again next launch. Deleting DB
+rows alone doesn't reach into AlarmKit's or iOS's own scheduled-notification stores, so
+`settings.tsx`'s `handleResetData` cancels those *first*: loops `cancelAlarmNotification` over
+every existing alarm (covers each one's backup notification and Hybrid Alarm task chain), then
+a new `alarmkit.ts` export `clearAllAlarmKitAlarms()` (wraps the native module's
+`clearAllAlarms()` — a genuine bulk API, not a loop) for anything AlarmKit-side, then
+`Notifications.cancelAllScheduledNotificationsAsync()` as a final sweep for anything else
+(Bedtime Reminder, calendar nudges). Confirmed via `Alert.prompt` (iOS-only, which is fine —
+BuzzBee is iOS-only) requiring the user to type CONFIRM, a deliberate extra speed bump beyond
+a plain button pair given there's no undo and no account to fall back on. Lives in a new
+"Danger Zone" section at the bottom of Settings.

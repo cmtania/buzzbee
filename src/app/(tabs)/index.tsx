@@ -19,12 +19,20 @@ import {
   repeatSummary,
 } from '@/lib/alarm-utils';
 import { useAlarmDraft } from '@/lib/alarm-draft-context';
-import { deleteAlarm, getAlarms, getRecentWakeEvents, getSettings, saveAlarm } from '@/lib/db';
+import {
+  deleteAlarm,
+  deleteAlarmTasks,
+  getAlarms,
+  getAlarmTaskCounts,
+  getRecentWakeEvents,
+  getSettings,
+  saveAlarm,
+} from '@/lib/db';
 import { scheduleAlarmNotification, cancelAlarmNotification } from '@/lib/scheduling';
 import { Alarm, AppSettings } from '@/lib/types';
 import { nextBedtimeReminder } from '@/lib/wind-down-scheduling';
 
-/** The clock time an alarm is sorted by — its window start for Smart Wake
+/** The clock time an alarm is sorted by — its window start for Wake Window
  * (when the window begins), its deadline for a fixed-time alarm (its one
  * real time). Matches what each alarm card/hero actually displays. */
 function sortMinutes(alarm: Alarm): number {
@@ -44,19 +52,22 @@ export default function HomeScreen() {
   const router = useRouter();
   const { startDraft } = useAlarmDraft();
   const [alarms, setAlarms] = useState<Alarm[]>([]);
+  const [taskCounts, setTaskCounts] = useState<Record<string, number>>({});
   const [streak, setStreak] = useState(0);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const load = useCallback(async () => {
-    const [rows, events, appSettings] = await Promise.all([
+    const [rows, events, appSettings, counts] = await Promise.all([
       getAlarms(),
       getRecentWakeEvents(30),
       getSettings(),
+      getAlarmTaskCounts(),
     ]);
     setAlarms(rows);
     setStreak(computeStreak(events.map((e) => e.date)));
     setSettings(appSettings);
+    setTaskCounts(counts);
   }, []);
 
   useFocusEffect(
@@ -106,6 +117,26 @@ export default function HomeScreen() {
     load();
   }
 
+  function handleDeleteOne(alarm: Alarm) {
+    // A confirmation step here, unlike the plain "+" add flow — this button
+    // is now always visible on every card (an earlier swipe-to-reveal
+    // gesture was tried and dropped for being unreliable), so there's no
+    // built-in friction left to guard against an accidental tap.
+    Alert.alert('Delete This Alarm?', "This can't be undone.", [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await cancelAlarmNotification(alarm.id);
+          await deleteAlarm(alarm.id);
+          await deleteAlarmTasks(alarm.id);
+          load();
+        },
+      },
+    ]);
+  }
+
   function handleDeleteAll() {
     setMenuOpen(false);
     Alert.alert('Delete All Alarms?', "This removes every alarm you've created. This can't be undone.", [
@@ -118,6 +149,7 @@ export default function HomeScreen() {
             alarms.map(async (a) => {
               await cancelAlarmNotification(a.id);
               await deleteAlarm(a.id);
+              await deleteAlarmTasks(a.id);
             })
           );
           load();
@@ -156,7 +188,7 @@ export default function HomeScreen() {
               />
               <View style={styles.heroText}>
                 <Text style={styles.heroLabel}>
-                  {primary.smartWakeEnabled ? 'Smart Wake begins in' : 'Rings in'}
+                  {primary.smartWakeEnabled ? 'Wake Window begins in' : 'Rings in'}
                 </Text>
                 <Text style={styles.heroRange}>
                   {primary.smartWakeEnabled
@@ -170,7 +202,7 @@ export default function HomeScreen() {
             <View style={styles.hero}>
               <Text style={styles.emptyHero}>
                 {alarms.length === 0
-                  ? 'No alarms yet — tap + to add your first Smart Wake alarm.'
+                  ? 'No alarms yet — tap + to add your first alarm.'
                   : 'All your alarms are off — enable one to start your countdown.'}
               </Text>
             </View>
@@ -223,11 +255,13 @@ export default function HomeScreen() {
           renderItem={({ item }) => (
             <AlarmCard
               alarm={item}
+              taskCount={taskCounts[item.id] ?? 0}
               onPress={() => {
                 startDraft(item);
                 router.push('/add-edit');
               }}
               onToggle={(next) => handleToggle(item, next)}
+              onDelete={() => handleDeleteOne(item)}
               onLongPress={() =>
                 router.push({
                   pathname: '/ringing',

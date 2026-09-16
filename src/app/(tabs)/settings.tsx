@@ -1,6 +1,7 @@
+import * as Notifications from 'expo-notifications';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ReactNode, useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,14 +12,15 @@ import {
   CalendarIcon,
   ChevronRight,
   InfoIcon,
-  MicIcon,
   MoonIcon,
-  StopwatchIcon,
+  TrashIcon,
 } from '@/components/icons';
 import { Toggle } from '@/components/toggle';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
 import { formatClock } from '@/lib/alarm-utils';
-import { getSettings, updateSettings } from '@/lib/db';
+import { clearAllAlarmKitAlarms } from '@/lib/alarmkit';
+import { getAlarms, getSettings, resetAllData, updateSettings } from '@/lib/db';
+import { cancelAlarmNotification } from '@/lib/scheduling';
 import { AppSettings } from '@/lib/types';
 import { rescheduleWindDownNotification } from '@/lib/wind-down-scheduling';
 
@@ -36,6 +38,45 @@ export default function SettingsScreen() {
     const next = await updateSettings(update);
     setSettings(next);
     if ('windDownEnabled' in update) await rescheduleWindDownNotification(next);
+  }
+
+  async function performReset() {
+    // Cancel native registrations first — deleting the DB rows below doesn't
+    // reach into AlarmKit's or iOS's own scheduled-notification stores, so
+    // anything left un-cancelled here would still fire later for an alarm
+    // that no longer exists.
+    const alarms = await getAlarms();
+    await Promise.all(alarms.map((a) => cancelAlarmNotification(a.id)));
+    clearAllAlarmKitAlarms();
+    await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
+    await resetAllData();
+    router.replace('/onboarding/welcome');
+  }
+
+  function handleResetData() {
+    // Alert.prompt is iOS-only, which is fine — BuzzBee is iOS-only (min
+    // 26.1, for AlarmKit). Typing the exact word is a deliberate extra
+    // speed bump beyond a plain Cancel/Confirm button pair, since this
+    // wipes every alarm, all history, and settings with no way to undo it.
+    Alert.prompt(
+      'Reset All Data?',
+      'This deletes every alarm, all wake/task history, custom sounds, and settings — and cannot be undone.\n\nType CONFIRM to continue.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset Everything',
+          style: 'destructive',
+          onPress: (text?: string) => {
+            if (text?.trim().toUpperCase() !== 'CONFIRM') {
+              Alert.alert('Not reset', 'You need to type CONFIRM exactly to reset your data.');
+              return;
+            }
+            performReset();
+          },
+        },
+      ],
+      'plain-text'
+    );
   }
 
   if (!settings) return <View style={styles.screen} />;
@@ -79,24 +120,6 @@ export default function SettingsScreen() {
                   />
                 }
               />
-              <Row
-                icon={<MicIcon size={16} color={Colors.accentDeep} />}
-                title="Ambient Awareness"
-                sub="On a Smart Wake early ring, checks room noise for 1 minute first — skips straight to a quick 'already up?' check instead of the mission if you're already active. On-device only, never recorded or uploaded"
-                right={
-                  <Toggle
-                    value={settings.ambientAwarenessEnabled}
-                    onChange={(v) => patch({ ambientAwarenessEnabled: v })}
-                  />
-                }
-              />
-              <Row
-                icon={<StopwatchIcon size={16} color={Colors.accentDeep} />}
-                title="Test Smart Wake"
-                sub="See it detect light sleep in under a minute"
-                onPress={() => router.push('/test-smart-wake')}
-                right={<ChevronRight />}
-              />
             </View>
           </View>
 
@@ -124,6 +147,21 @@ export default function SettingsScreen() {
               />
             </View>
           </View>
+
+          <View>
+            <Text style={styles.sectionLabel}>Danger Zone</Text>
+            <View style={styles.group}>
+              <Row
+                icon={<TrashIcon size={16} color={Colors.danger} />}
+                title="Reset Data"
+                sub="Deletes every alarm, all history, and settings"
+                divider={false}
+                danger
+                onPress={handleResetData}
+                right={<ChevronRight />}
+              />
+            </View>
+          </View>
         </ScrollView>
       </SafeAreaView>
       <FloatingTabBar />
@@ -138,6 +176,7 @@ function Row({
   right,
   onPress,
   divider = true,
+  danger = false,
 }: {
   icon?: ReactNode;
   title: string;
@@ -145,13 +184,15 @@ function Row({
   right: ReactNode;
   onPress?: () => void;
   divider?: boolean;
+  /** Reddens the icon backdrop and title — for a destructive row like Reset Data. */
+  danger?: boolean;
 }) {
   const Wrapper = onPress ? Pressable : View;
   return (
     <Wrapper style={[styles.row, divider && styles.rowDivider]} onPress={onPress}>
-      {icon && <View style={styles.rowIcon}>{icon}</View>}
+      {icon && <View style={[styles.rowIcon, danger && styles.rowIconDanger]}>{icon}</View>}
       <View style={styles.rowMain}>
-        <Text style={styles.rowTitle}>{title}</Text>
+        <Text style={[styles.rowTitle, danger && styles.rowTitleDanger]}>{title}</Text>
         {sub && <Text style={styles.rowSub}>{sub}</Text>}
       </View>
       {right}
@@ -199,7 +240,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
+  rowIconDanger: { backgroundColor: Colors.danger + '26' },
   rowMain: { flex: 1, minWidth: 0 },
   rowTitle: { fontFamily: Fonts.bold, fontSize: 14.5, color: Colors.ink },
+  rowTitleDanger: { color: Colors.danger },
   rowSub: { fontFamily: Fonts.semiBold, fontSize: 12, color: Colors.inkFaint, marginTop: 1 },
 });
