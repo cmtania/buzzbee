@@ -12,7 +12,7 @@ import { BackspaceIcon, WaveformIcon } from '@/components/icons';
 import { RingingWaveBackground } from '@/components/ringing-wave-background';
 import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
 import { useMicMetering } from '@/hooks/use-mic-metering';
-import { armConfirmationAlarm, disarmConfirmationAlarm } from '@/lib/alarmkit';
+import { armConfirmationAlarm, CONFIRMATION_ALARM_DELAY_SEC, disarmConfirmationAlarm } from '@/lib/alarmkit';
 import { addAlarmTrigger, addWakeEvent, getAlarm } from '@/lib/db';
 import { cancelHybridTaskChain, scheduleHybridTaskChain } from '@/lib/hybrid-tasks';
 import { cancelAlarmNotification } from '@/lib/scheduling';
@@ -28,17 +28,6 @@ const MIC_MISSIONS: DismissMethod[] = ['clap', 'buzz'];
 // the mission resets to 0, rather than staying silently "in progress"
 // forever.
 const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000;
-// Delay before the AlarmKit confirmation/anti-cheat safety net re-rings (see
-// armConfirmationAlarm) — deliberately its own constant, not tied to
-// INACTIVITY_TIMEOUT_MS above: that one only matters while the app stays
-// alive, so 3 minutes is a safe, generous grace period there. This one
-// fires unconditionally, alive or not, so a short value here means even a
-// legitimately slow mission attempt (no force-quit at all) could trigger a
-// duplicate re-ring before finishing — confirmed on a real device at 30s
-// (too short, re-rang mid-legitimate-attempt). 90s is a safer floor: still
-// closes the force-quit escape window quickly, but comfortably outlasts a
-// real attempt at any of the five missions (Tap x100, Clap x50, etc.).
-const CONFIRMATION_ALARM_DELAY_SEC = 90;
 
 // "<Verb> to dismiss" pill-eyebrow copy, per design/Ringing*.dc.html.
 const MISSION_VERBS: Record<DismissMethod, string> = {

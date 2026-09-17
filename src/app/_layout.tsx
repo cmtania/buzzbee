@@ -19,13 +19,20 @@ import { useBackgroundKeepAlive } from '@/hooks/use-background-keep-alive';
 import { useEveningCalendarCheck } from '@/hooks/use-evening-calendar-check';
 import { useWakeWindowMonitor } from '@/hooks/use-wake-window-monitor';
 import { AlarmDraftProvider, useAlarmDraft } from '@/lib/alarm-draft-context';
-import { checkAlarmKitLaunch, configureAlarmKit } from '@/lib/alarmkit';
+import {
+  armConfirmationAlarm,
+  checkAlarmKitLaunch,
+  configureAlarmKit,
+  CONFIRMATION_ALARM_DELAY_SEC,
+} from '@/lib/alarmkit';
 import { getAlarm, getSettings } from '@/lib/db';
 import { dedupKey, markTriggeredToday } from '@/lib/ring-dedup';
 import { rescheduleWindDownNotification } from '@/lib/wind-down-scheduling';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 configureAlarmKit();
+
+type PendingAlarmLaunch = { alarmId: string; triggeredBy: 'window-start' | 'hard-deadline' };
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -37,12 +44,50 @@ export default function RootLayout() {
     DynaPuff_700Bold,
   });
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
+  const [alarmLaunchChecked, setAlarmLaunchChecked] = useState(false);
+  const [pendingAlarmLaunch, setPendingAlarmLaunch] = useState<PendingAlarmLaunch | null>(null);
 
   useEffect(() => {
     getSettings().then((s) => setHasOnboarded(s.hasOnboarded));
   }, []);
 
-  const ready = fontsLoaded && hasOnboarded !== null;
+  // Resolve a pending AlarmKit cold-launch up front, before the splash
+  // screen ever hides — this used to happen in an effect inside AppShell,
+  // *after* Home had already rendered and the splash had already hidden.
+  // That both flashed Home before Ringing and, worse, left the anti-cheat
+  // safety net (armConfirmationAlarm) unarmed for however long that took:
+  // tapping AlarmKit's native Stop control during that window silenced the
+  // alarm for good with no backstop, since arming it used to wait for the
+  // Ringing screen to mount. Arming it here instead closes that gap down to
+  // just this synchronous check + one DB read, however long Home would have
+  // taken to render is no longer part of the window at all.
+  useEffect(() => {
+    const alarmId = checkAlarmKitLaunch();
+    if (!alarmId) {
+      setAlarmLaunchChecked(true);
+      return;
+    }
+    (async () => {
+      const alarm = await getAlarm(alarmId);
+      if (alarm) {
+        // Mark this alarm as already-rung *before* navigating —
+        // useWakeWindowMonitor shares this same dedup set (lib/ring-dedup.ts)
+        // and starts ticking fresh on every cold launch, with no idea
+        // AlarmKit already handled this alarm. Without marking it here, its
+        // next 5s tick sees the same overdue deadline and pushes a second,
+        // duplicate /ringing screen.
+        markTriggeredToday(dedupKey(alarm.id));
+        armConfirmationAlarm(alarm, CONFIRMATION_ALARM_DELAY_SEC).catch(() => {});
+      }
+      setPendingAlarmLaunch({
+        alarmId,
+        triggeredBy: alarm?.smartWakeEnabled ? 'window-start' : 'hard-deadline',
+      });
+      setAlarmLaunchChecked(true);
+    })();
+  }, []);
+
+  const ready = fontsLoaded && hasOnboarded !== null && alarmLaunchChecked;
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
@@ -55,13 +100,19 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AlarmDraftProvider>
-        <AppShell initialHasOnboarded={hasOnboarded} />
+        <AppShell initialHasOnboarded={hasOnboarded} pendingAlarmLaunch={pendingAlarmLaunch} />
       </AlarmDraftProvider>
     </SafeAreaProvider>
   );
 }
 
-function AppShell({ initialHasOnboarded }: { initialHasOnboarded: boolean }) {
+function AppShell({
+  initialHasOnboarded,
+  pendingAlarmLaunch,
+}: {
+  initialHasOnboarded: boolean;
+  pendingAlarmLaunch: PendingAlarmLaunch | null;
+}) {
   const router = useRouter();
   const { setDraft } = useAlarmDraft();
 
@@ -69,45 +120,20 @@ function AppShell({ initialHasOnboarded }: { initialHasOnboarded: boolean }) {
   useEveningCalendarCheck();
   useBackgroundKeepAlive();
 
-  // Redirect to onboarding on the very first launch, before the native
-  // splash screen is hidden (see RootLayout) so Home never flashes first.
+  // Redirect to onboarding, or straight into a pending AlarmKit launch (see
+  // RootLayout, which already resolved and armed it), before the native
+  // splash screen is hidden so Home never flashes first.
   useEffect(() => {
     if (!initialHasOnboarded) {
       router.replace('/onboarding/welcome');
+    } else if (pendingAlarmLaunch) {
+      router.replace({ pathname: '/ringing', params: pendingAlarmLaunch });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     getSettings().then(rescheduleWindDownNotification);
-  }, []);
-
-  // If the app was just launched by tapping Stop on an AlarmKit alert (the
-  // app was previously force-quit — AlarmKit is what lets the alarm still
-  // ring and this launch happen at all), go straight to the mission screen.
-  // Hybrid Alarm follow-up tasks never go through AlarmKit (see
-  // hybrid-tasks.ts) — they're plain notifications, so there's no
-  // task-launch case to handle here.
-  useEffect(() => {
-    const alarmId = checkAlarmKitLaunch();
-    if (!alarmId) return;
-    (async () => {
-      const alarm = await getAlarm(alarmId);
-      // Mark this alarm as already-rung *before* navigating — useWakeWindowMonitor
-      // shares this same dedup set (lib/ring-dedup.ts) and starts ticking
-      // fresh on every cold launch, with no idea AlarmKit already handled
-      // this alarm. Without marking it here, its next 5s tick sees the same
-      // overdue deadline and pushes a second, duplicate /ringing screen.
-      if (alarm) markTriggeredToday(dedupKey(alarm.id));
-      router.push({
-        pathname: '/ringing',
-        params: {
-          alarmId,
-          triggeredBy: alarm?.smartWakeEnabled ? 'window-start' : 'hard-deadline',
-        },
-      });
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

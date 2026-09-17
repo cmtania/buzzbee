@@ -112,7 +112,7 @@ export default function SettingsScreen() {
               <Row
                 icon={<CalendarIcon size={16} color={Colors.accentDeep} />}
                 title="Calendar Auto-Shift"
-                sub="Suggests moving your wake window the evening before, if tomorrow's first event would conflict with it"
+                sub="Checks 6:00–11:59 PM (not all day) and suggests moving your wake window if tomorrow's first event would conflict with it"
                 right={
                   <Toggle
                     value={settings.calendarAutoShiftEnabled}

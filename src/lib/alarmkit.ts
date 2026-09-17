@@ -14,7 +14,7 @@ import {
   setAlarmKitId,
   setConfirmAlarmKitId,
 } from './db';
-import { isSoundName, NOTIFICATION_SOUND_FILES } from './sounds';
+import { isCustomSoundUri, isSoundName, NOTIFICATION_SOUND_FILES, SoundName } from './sounds';
 import { Alarm } from './types';
 
 // AlarmKit's soundName docs say "must exist in app bundle" — reusing the
@@ -22,8 +22,26 @@ import { Alarm } from './types';
 // sounds.ts's doc comment) rather than the in-app .mp3s, since those are
 // already proven to land in the native bundle via expo-notifications'
 // config plugin and AlarmKit's requirements (PCM, ≤30s) match.
+//
+// A custom recorded sound (see isCustomSoundUri) is a runtime file in the
+// app's sandbox, not a build-time bundle resource — AlertConfiguration
+// .AlertSound.named(_:) (the underlying AlarmKit API this maps to, see
+// ExpoAlarmKitModule.swift) can only resolve bundle resources, so there is
+// no way to make AlarmKit's own native alert play it, on this OS version or
+// any future one short of Apple adding a runtime-sound API. Falling back to
+// `undefined` here left AlarmKit using its own generic system default
+// alarm sound for anyone with a custom recording (confirmed on-device); this
+// falls back to a bundled tone instead so a closed-app alert still sounds
+// like BuzzBee. The custom recording itself still plays correctly once the
+// person opens the app (see AlarmSoundLoop in ringing.tsx, which reads
+// alarm.sound directly and isn't bundle-restricted) — record-sound.tsx and
+// choose-sound.tsx explain this gap where a custom sound is picked.
+const CUSTOM_SOUND_FALLBACK: SoundName = 'Classic Alarm';
+
 function alarmKitSoundName(sound: string): string | undefined {
-  return isSoundName(sound) ? NOTIFICATION_SOUND_FILES[sound] : undefined;
+  if (isSoundName(sound)) return NOTIFICATION_SOUND_FILES[sound];
+  if (isCustomSoundUri(sound)) return NOTIFICATION_SOUND_FILES[CUSTOM_SOUND_FALLBACK];
+  return undefined;
 }
 
 const APP_GROUP_ID = 'group.com.cmtania.buzzbeealarm';
@@ -181,6 +199,19 @@ export function checkAlarmKitLaunch(): string | null {
   if (!mod) return null;
   return mod.getLaunchPayload()?.payload ?? null;
 }
+
+/**
+ * Delay before the AlarmKit confirmation/anti-cheat safety net re-rings (see
+ * armConfirmationAlarm). Shared by ringing.tsx (arms it once the mission
+ * screen has a loaded alarm) and _layout.tsx (arms it immediately on a cold
+ * AlarmKit launch too, before navigation even completes — see that file's
+ * launch-detection effect for why relying on ringing.tsx alone left a gap).
+ * 90s is a safe floor: short enough to close a force-quit escape window
+ * quickly, but comfortably outlasts a real attempt at any of the five
+ * missions (Tap x100, Clap x50, etc.) — confirmed too short at 30s on a real
+ * device (re-rang mid-legitimate-attempt).
+ */
+export const CONFIRMATION_ALARM_DELAY_SEC = 90;
 
 /**
  * Arms a one-shot AlarmKit safety-net alarm, `delaySeconds` from now, that

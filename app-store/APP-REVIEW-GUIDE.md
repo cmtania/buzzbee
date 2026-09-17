@@ -57,73 +57,65 @@ Wakes you at the right moment, not just the loud one.
 Paste this into App Store Connect → App Review Information → Notes.
 
 ```
-BuzzBee is a single-user alarm app — there's no account, login, or server, so
-there's nothing to demo-pair. Every feature is available immediately after install.
+BuzzBee is a single-user app — no account, login, or server, so there's nothing
+to demo-pair. Every feature is available right after install.
 
-CORE MECHANIC: instead of one fixed time, an alarm can use "Wake Window" (e.g.
-6:30–7:00 AM). BuzzBee uses Apple's AlarmKit to start the alarm reliably at the
-window's start time, even if the app has been fully force-quit — full volume,
-through Silent mode and Focus. It then rings gently and gradually builds to full
-volume by the window's end (the hard deadline), all handled by AlarmKit and the
-app's own escalation timer once launched — no motion/sleep sensing involved, and no
-dependency on the app being open beforehand. A fixed-time alarm (Wake Window off)
-works exactly the same way, just as one instant instead of a ramp.
+CORE MECHANIC: instead of one fixed time, an alarm can use a "Wake Window" (e.g.
+6:30–7:00 AM). Apple's AlarmKit reliably starts it at the window's start — even
+fully force-quit, through Silent mode and Focus — then it rings gently and ramps
+to full volume by the window's end (the hard deadline). No motion/sleep sensing
+involved, no dependency on the app being open. A fixed-time alarm (Wake Window
+off) works the same way, just as one instant instead of a ramp.
 
-MINIMUM OS: BuzzBee requires iOS 26.1 or later — AlarmKit, the framework behind the
-reliable alarm, only exists starting iOS 26. Please test on a device or simulator
-running iOS 26.1+; on an older OS the app cannot install.
+MINIMUM OS: iOS 26.1+ required — AlarmKit (the framework behind the reliable
+alarm) doesn't exist before iOS 26. Please test on a device/simulator running
+26.1+; on an older OS the app cannot install.
 
-MICROPHONE: used for two dismiss missions (Clap, Buzzzzz) — in both cases BuzzBee
-only reads a live volume level, no audio is stored. ("Ambient Awareness," a
-planned pre-ring room-noise check, is shown in Settings as "Coming Soon" and is
-not active in this build.) Separately, an optional "Record Your Own Alarm
-Sound" feature (Settings → Sound & Haptics, or an alarm's Choose a Sound screen)
-lets a user record a real clip (up to 15 seconds) as their alarm tone. That
-recording is written to local device storage only and is never uploaded anywhere.
+MICROPHONE: used for two dismiss missions (Clap, Buzzzzz) — only a live volume
+level is read, no audio stored. ("Ambient Awareness," a planned pre-ring
+room-noise check, shows as "Coming Soon" in Settings and isn't active in this
+build.) Separately, "Record Your Own Alarm Sound" (Settings → Sound & Haptics,
+or an alarm's Choose a Sound screen) lets a user record up to 15s as their
+alarm tone, saved to local storage only, never uploaded.
 
-CALENDAR: "Calendar Auto-Shift" is on by default (Settings → Smart Features) and
-reads only the next day's earliest timed event to suggest shifting an alarm's wake
-window if it would conflict (less than 45 minutes of buffer before the alarm's
-hard deadline) — it never modifies the calendar itself.
+CALENDAR: "Calendar Auto-Shift" (on by default, Settings → Smart Features)
+reads only tomorrow's earliest timed event, suggesting a wake-window shift if
+there's under 45 minutes of buffer before the alarm's hard deadline — it never
+edits the calendar.
 
-To see it in action: add a calendar event for tomorrow that starts at or before
-one of your enabled alarms' hard deadline, then foreground the app after 6:00 PM
-local time (the check only runs in the evening, once per calendar day — force-quit
-and relaunch if you already opened the app once tonight before adding the event).
-A local notification appears within a few seconds: "Shift your wake window? —
-Tomorrow's [event title] is at [time] — move your window to [time]–[time]?" There
-is currently no way to enable silent auto-apply from the UI, so this confirm-first
-notification is the only reachable behavior — tapping it does not need to be
-followed up on for review purposes, seeing the notification itself is the proof
-the feature works.
+To test: add a calendar event for tomorrow starting at/before an enabled
+alarm's hard deadline, then foreground the app after 6:00 PM local time
+(evening-only, once per calendar day — force-quit and relaunch if you already
+opened the app tonight). A notification appears within seconds: "Shift your
+wake window? — Tomorrow's [event] is at [time] — move to [time]–[time]?"
+There's no auto-apply toggle in the UI yet, so this confirm-first notification
+is the only reachable behavior — seeing it is proof enough; no need to tap it
+through.
 
-TASK AFTER YOU'RE AWAKE: an alarm can have up to 5 follow-up tasks (e.g. "Taking a
-bath," each with its own time). These are plain local notifications, NOT a second
-AlarmKit alarm — they don't ring through Silent mode, have no full-screen alert, and
-no dismiss mission. A task's notification only stays scheduled if the alarm's own
-mission actually gets completed (it's provisionally cancelled the moment the alarm
-rings, then restored on a genuine dismiss) — so a reviewer testing this should
-complete the alarm's mission first, then wait for the task's own time. Tapping a
-task's notification opens a small "Did you finish this?" dialog; ignoring the
-notification is also a valid, intended outcome (silently recorded as not completed).
+TASK AFTER YOU'RE AWAKE: an alarm can chain up to 5 follow-up tasks (e.g.
+"Taking a bath"), each with its own time. These are plain local notifications,
+not a second AlarmKit alarm — no Silent-mode ring, no full-screen alert, no
+mission. A task stays scheduled only if the alarm's own mission is completed
+(cancelled the moment the alarm rings, restored on genuine dismiss) — so
+complete the alarm's mission first, then wait for the task's time. Tapping its
+notification opens "Did you finish this?"; ignoring it is also valid (recorded
+as not completed).
 
-RESET DATA: Settings → Danger Zone → Reset Data deletes every alarm, all wake/task
-history, custom sounds, and settings, cancels every pending native
-alarm/notification, and returns the app to its just-installed state (onboarding
-included). Confirmed by typing the word CONFIRM into a native text-input alert
-(`Alert.prompt`, iOS-only — fine, since BuzzBee is iOS-only) before it proceeds;
-there's no account to re-authenticate against, so this stands in for one.
+RESET DATA: Settings → Danger Zone → Reset Data deletes every alarm, all
+history, custom sounds and settings, cancels every pending alarm/notification,
+and returns the app to its just-installed state (onboarding included).
+Requires typing CONFIRM into a native text-input alert first — there's no
+account to re-authenticate against, so this stands in for one.
 
-BACKGROUND MODES: "audio" is declared because a ringing alarm's sound must keep
-looping if the app is backgrounded mid-ring (not force-quit) rather than cutting
-out; a near-silent keep-alive audio session also runs whenever any alarm is
-enabled, so the app's own JS timers (the evening calendar check, the fixed-time/
-Wake Window trigger loop) keep working while backgrounded rather than being
-suspended by iOS. Neither does anything network-related.
+BACKGROUND MODES: "audio" is declared so a ringing alarm's sound keeps looping
+if backgrounded mid-ring (not force-quit), and a near-silent keep-alive session
+runs whenever any alarm is enabled so the app's own JS timers (evening calendar
+check, alarm trigger loop) keep working while backgrounded instead of
+suspended. Nothing network-related.
 
-PRIVACY: no user account, no server, no analytics or tracking SDK of any kind. No
-data ever leaves the device except when the user taps a Support/Privacy/Terms link
-(static webpages, not an API).
+PRIVACY: no account, no server, no analytics or tracking SDK. No data leaves
+the device except when tapping a Support/Privacy/Terms link (static webpages,
+not an API).
 
 Support: https://cmtania.github.io/buzzbee-docs/support.html
 Privacy Policy: https://cmtania.github.io/buzzbee-docs/privacy.html

@@ -81,6 +81,13 @@ export default function ChooseSoundScreen() {
                   />
                 ))}
               </View>
+              {draft.sound && customSounds.some((s) => s.filePath === draft.sound) && (
+                <Text style={styles.customSoundNote}>
+                  If BuzzBee is closed when this alarm rings, the lock screen alert plays Classic
+                  Alarm instead — iOS only allows built-in sounds there. Your recording plays
+                  correctly once you open the mission.
+                </Text>
+              )}
               <Text style={styles.sectionLabel}>Default Sounds</Text>
             </>
           )}
@@ -217,6 +224,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
+  },
+  customSoundNote: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 12.5,
+    color: Colors.inkFaint,
+    lineHeight: 18,
+    marginBottom: 16,
   },
   grid: {
     flexDirection: 'row',
