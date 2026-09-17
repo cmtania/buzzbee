@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
+import { isoMatchesTime } from '@/lib/alarm-utils';
 import { cancelAlarmKitAlarm } from '@/lib/alarmkit';
-import { getAlarms } from '@/lib/db';
+import { getAlarms, getWakeEventToday } from '@/lib/db';
 import { dedupKey, hasTriggeredToday, markTriggeredToday } from '@/lib/ring-dedup';
 import { isFixedTimeDue, isWindowStartDue } from '@/lib/wake-window-engine';
 
@@ -39,24 +40,34 @@ export function useWakeWindowMonitor() {
         const key = dedupKey(alarm.id, now);
         if (hasTriggeredToday(key)) continue;
 
-        if (isFixedTimeDue(alarm, now)) {
+        const fixedDue = isFixedTimeDue(alarm, now);
+        const windowDue = isWindowStartDue(alarm, now);
+        if (!fixedDue && !windowDue) continue;
+
+        // hasTriggeredToday's in-memory Set resets on every app restart, so
+        // within GRACE_MIN of a deadline that already rang and was genuinely
+        // dismissed this session (mission completed, then the app got
+        // force-quit and reopened a minute later — a very normal test/use
+        // cycle), it looks freshly "due" again with no memory of that, and
+        // would re-push /ringing for an alarm the user already handled.
+        // WakeEvent is the durable record of a real dismissal (see
+        // ringing.tsx's dismiss()), so check it before trusting the
+        // in-memory set alone — same guard alarmKit.ts's own re-arm logic
+        // already uses. An alarm that rang and was *ignored* has no
+        // WakeEvent, so this doesn't touch the intended "keep re-checking an
+        // unhandled alarm" retry behavior at all.
+        const todayEvent = await getWakeEventToday(alarm.id);
+        if (todayEvent && isoMatchesTime(todayEvent.scheduledDeadline, alarm.windowEnd)) {
           markTriggeredToday(key);
-          cancelAlarmKitAlarm(alarm.id).catch(() => {});
-          router.push({
-            pathname: '/ringing',
-            params: { alarmId: alarm.id, triggeredBy: 'hard-deadline' },
-          });
           continue;
         }
 
-        if (isWindowStartDue(alarm, now)) {
-          markTriggeredToday(key);
-          cancelAlarmKitAlarm(alarm.id).catch(() => {});
-          router.push({
-            pathname: '/ringing',
-            params: { alarmId: alarm.id, triggeredBy: 'window-start' },
-          });
-        }
+        markTriggeredToday(key);
+        cancelAlarmKitAlarm(alarm.id).catch(() => {});
+        router.push({
+          pathname: '/ringing',
+          params: { alarmId: alarm.id, triggeredBy: fixedDue ? 'hard-deadline' : 'window-start' },
+        });
       }
     }, CHECK_INTERVAL_MS);
 
