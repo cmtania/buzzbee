@@ -1,4 +1,3 @@
-import { Picker } from '@react-native-picker/picker';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
@@ -6,7 +5,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
 import { formatTime12h } from '@/lib/alarm-utils';
-import { from24h, PICKER_HOURS, PICKER_MINUTES, pickerTextColor, to24h } from './time-picker-modal';
+import { from24h, PICKER_HOURS, PICKER_MINUTES, to24h } from './time-picker-modal';
+import { WheelItem, WheelPicker } from './wheel-picker';
+
+const HOUR_ITEMS: WheelItem<number>[] = PICKER_HOURS.map((h) => ({ label: String(h), value: h }));
+const MINUTE_ITEMS: WheelItem<number>[] = PICKER_MINUTES.map((m) => ({
+  label: String(m).padStart(2, '0'),
+  value: m,
+}));
+const AMPM_ITEMS: WheelItem<'AM' | 'PM'>[] = [
+  { label: 'AM', value: 'AM' },
+  { label: 'PM', value: 'PM' },
+];
 
 function toMinutesOfDay(time: string): number {
   const [h, m] = time.split(':').map(Number);
@@ -109,38 +119,23 @@ export function HybridTaskModal({
 
             <Text style={styles.fieldLabel}>Time — after {formatTime12h(minTime)}</Text>
             <View style={styles.pickerRow}>
-              <Picker
-                style={styles.picker}
-                itemStyle={styles.pickerItem}
-                selectedValue={hour12}
-                onValueChange={(v) => applyTime(Number(v), minute, ampm)}>
-                {PICKER_HOURS.map((h) => (
-                  <Picker.Item key={h} label={String(h)} value={h} color={pickerTextColor()} />
-                ))}
-              </Picker>
+              <WheelPicker
+                items={HOUR_ITEMS}
+                value={hour12}
+                onChange={(v) => applyTime(v, minute, ampm)}
+              />
               <Text style={styles.colon}>:</Text>
-              <Picker
-                style={styles.picker}
-                itemStyle={styles.pickerItem}
-                selectedValue={minute}
-                onValueChange={(v) => applyTime(hour12, Number(v), ampm)}>
-                {PICKER_MINUTES.map((m) => (
-                  <Picker.Item
-                    key={m}
-                    label={String(m).padStart(2, '0')}
-                    value={m}
-                    color={pickerTextColor()}
-                  />
-                ))}
-              </Picker>
-              <Picker
-                style={styles.picker}
-                itemStyle={styles.pickerItem}
-                selectedValue={ampm}
-                onValueChange={(v) => applyTime(hour12, minute, v as 'AM' | 'PM')}>
-                <Picker.Item label="AM" value="AM" color={pickerTextColor()} />
-                <Picker.Item label="PM" value="PM" color={pickerTextColor()} />
-              </Picker>
+              <WheelPicker
+                items={MINUTE_ITEMS}
+                value={minute}
+                onChange={(v) => applyTime(hour12, v, ampm)}
+              />
+              <WheelPicker
+                items={AMPM_ITEMS}
+                value={ampm}
+                onChange={(v) => applyTime(hour12, minute, v)}
+                loop={false}
+              />
             </View>
 
             <View style={styles.actions}>
@@ -206,8 +201,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   pickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  picker: { flex: 1, height: Platform.OS === 'ios' ? 150 : 52 },
-  pickerItem: { fontSize: 20, fontFamily: Fonts.bold, color: Colors.ink, height: 150 },
   colon: { fontFamily: Fonts.extraBold, fontSize: 20, color: Colors.ink, marginHorizontal: 2 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 8, marginBottom: 12 },
   deleteBtn: {

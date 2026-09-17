@@ -1,16 +1,23 @@
-import { Picker } from '@react-native-picker/picker';
 import { useState } from 'react';
-import { Modal, Platform, StyleSheet, Text, View } from 'react-native';
+import { Modal, StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
+import { WheelItem, WheelPicker } from './wheel-picker';
 
 export const PICKER_HOURS = Array.from({ length: 12 }, (_, i) => i + 1); // 1..12
 export const PICKER_MINUTES = Array.from({ length: 60 }, (_, i) => i); // 0..59
-export function pickerTextColor(): string | undefined {
-  return Platform.OS === 'ios' ? Colors.ink : undefined;
-}
+
+const HOUR_ITEMS: WheelItem<number>[] = PICKER_HOURS.map((h) => ({ label: String(h), value: h }));
+const MINUTE_ITEMS: WheelItem<number>[] = PICKER_MINUTES.map((m) => ({
+  label: String(m).padStart(2, '0'),
+  value: m,
+}));
+const AMPM_ITEMS: WheelItem<'AM' | 'PM'>[] = [
+  { label: 'AM', value: 'AM' },
+  { label: 'PM', value: 'PM' },
+];
 
 export function to24h(hour12: number, minute: number, ampm: 'AM' | 'PM'): string {
   let hh = hour12 % 12;
@@ -70,38 +77,10 @@ export function TimePickerModal({
             <Text style={styles.title}>{label}</Text>
 
             <View style={styles.pickerRow}>
-              <Picker
-                style={styles.picker}
-                itemStyle={styles.pickerItem}
-                selectedValue={hour12}
-                onValueChange={(v) => setHour12(Number(v))}>
-                {PICKER_HOURS.map((h) => (
-                  <Picker.Item key={h} label={String(h)} value={h} color={pickerTextColor()} />
-                ))}
-              </Picker>
+              <WheelPicker items={HOUR_ITEMS} value={hour12} onChange={setHour12} />
               <Text style={styles.colon}>:</Text>
-              <Picker
-                style={styles.picker}
-                itemStyle={styles.pickerItem}
-                selectedValue={minute}
-                onValueChange={(v) => setMinute(Number(v))}>
-                {PICKER_MINUTES.map((m) => (
-                  <Picker.Item
-                    key={m}
-                    label={String(m).padStart(2, '0')}
-                    value={m}
-                    color={pickerTextColor()}
-                  />
-                ))}
-              </Picker>
-              <Picker
-                style={styles.picker}
-                itemStyle={styles.pickerItem}
-                selectedValue={ampm}
-                onValueChange={(v) => setAmpm(v as 'AM' | 'PM')}>
-                <Picker.Item label="AM" value="AM" color={pickerTextColor()} />
-                <Picker.Item label="PM" value="PM" color={pickerTextColor()} />
-              </Picker>
+              <WheelPicker items={MINUTE_ITEMS} value={minute} onChange={setMinute} />
+              <WheelPicker items={AMPM_ITEMS} value={ampm} onChange={setAmpm} loop={false} />
             </View>
 
             <Pressable style={styles.doneBtn} onPress={confirm}>
@@ -139,8 +118,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   pickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  picker: { flex: 1, height: Platform.OS === 'ios' ? 180 : 52 },
-  pickerItem: { fontSize: 22, fontFamily: Fonts.bold, color: Colors.ink, height: 180 },
   colon: { fontFamily: Fonts.extraBold, fontSize: 22, color: Colors.ink, marginHorizontal: 2 },
   doneBtn: {
     backgroundColor: Colors.accent,
