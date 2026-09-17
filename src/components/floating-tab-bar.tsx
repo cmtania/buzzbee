@@ -29,7 +29,7 @@ export function FloatingTabBar() {
               key={path}
               style={styles.tab}
               onPress={() => !active && router.replace(path)}
-              hitSlop={8}>
+              hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}>
               <Icon size={20} color={active ? Colors.ink : Colors.inkFaint} />
               <Text style={[styles.tabLabel, { color: active ? Colors.ink : Colors.inkFaint }]}>
                 {label}
@@ -73,7 +73,13 @@ const styles = StyleSheet.create({
   },
   tab: {
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 3,
+    // Icon (20px) + label (10px) alone lands under 44pt tall; combined with
+    // the hitSlop above this reaches a proper 44pt+ tap target without
+    // changing the tab bar's visual height (still centered in its 64pt row).
+    minHeight: 44,
+    minWidth: 44,
   },
   tabLabel: {
     fontSize: 10,

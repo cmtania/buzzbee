@@ -7,14 +7,25 @@ export const Colors = {
   bg: '#FBF3E4',
   ink: '#2B2420',
   inkSoft: '#6B5D4F',
-  inkFaint: '#9C8C7A',
+  // Darkened from the original #9C8C7A: that only hit 2.95:1 contrast against
+  // `bg` (fails WCAG AA's 4.5:1 for normal text, even fails Large Text's 3:1)
+  // despite being used app-wide for hints/subtitles/timestamps at 11-14.5px.
+  // This hits 4.88:1 on `bg` and 5.29:1 on `cardBg` — passes AA on both with
+  // margin — while staying in the same warm-brown family as ink/inkSoft.
+  inkFaint: '#786853',
   cardBg: '#FFFDF7',
   trackOff: '#EDE2CE',
   accent: '#F5A623',
   accentDeep: '#E8790A',
   white: '#FFFFFF',
-  danger: '#D64545',
-  success: '#3FAE5A',
+  // Darkened from #D64545 (3.97:1 on `bg`, fails AA's 4.5:1) — used as text
+  // (record-sound.tsx's error message, delete labels) as well as fills/dots,
+  // so it needs to pass as text too. 4.89:1 on `bg`.
+  danger: '#C13838',
+  // Darkened from #3FAE5A (2.57:1 on `bg`) for the History calendar's
+  // completed/missed dots — still reads as "success green" but is now
+  // actually visible against the cream background. 4.81:1 on `bg`.
+  success: '#297A44',
 } as const;
 
 export const Fonts = {

@@ -64,7 +64,7 @@ export function AlarmCard({
       </View>
       <View style={styles.actions}>
         <Toggle value={alarm.enabled} onChange={onToggle} />
-        <Pressable style={styles.deleteBtn} onPress={onDelete} hitSlop={10}>
+        <Pressable style={styles.deleteBtn} onPress={onDelete} hitSlop={6}>
           <TrashIcon size={16} color={Colors.danger} />
         </Pressable>
       </View>
@@ -120,6 +120,11 @@ const styles = StyleSheet.create({
     color: Colors.accentDeep,
     marginTop: 3,
   },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
-  deleteBtn: { padding: 2 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 2, flexShrink: 0 },
+  // 44x44 is Apple HIG's minimum tap target; the 16px icon alone (even with
+  // hitSlop) came in under that at ~40x40 effective — real estate here for a
+  // destructive action right next to the enable toggle, worth getting right.
+  // No visible background/border, so the extra invisible padding doesn't
+  // change how the row looks, just how forgiving it is to tap.
+  deleteBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 });

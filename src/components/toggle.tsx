@@ -28,7 +28,10 @@ export function Toggle({
           backgroundColor: value ? Colors.accent : Colors.trackOff,
         },
       ]}
-      hitSlop={8}>
+      // md height is 26pt; +8 hitSlop only reached ~42pt, just under Apple's
+      // 44pt minimum tap target. Extra vertical slop closes that gap without
+      // changing the track's actual visual size.
+      hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
       <View
         style={[
           styles.knob,
