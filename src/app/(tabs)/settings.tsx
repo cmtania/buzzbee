@@ -1,20 +1,28 @@
-import * as Notifications from 'expo-notifications';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { ReactNode, useCallback, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { HapticPressable as Pressable } from '@/components/haptic-pressable';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { HapticPressable as Pressable } from "@/components/haptic-pressable";
+import * as Notifications from "expo-notifications";
+import { useFocusEffect, useRouter } from "expo-router";
+import { ReactNode, useCallback, useState } from "react";
+import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { GlassCard } from '@/components/glass-card';
-import { Toggle } from '@/components/toggle';
-import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
-import { BedDouble, Bell, Calendar, ChevronRight, Info, Trash, Volume2 } from 'lucide-react-native';
-import { formatClock } from '@/lib/alarm-utils';
-import { clearAllAlarmKitAlarms } from '@/lib/alarmkit';
-import { getAlarms, getSettings, resetAllData, updateSettings } from '@/lib/db';
-import { cancelAlarmNotification } from '@/lib/scheduling';
-import { AppSettings } from '@/lib/types';
-import { rescheduleWindDownNotification } from '@/lib/wind-down-scheduling';
+import { GlassCard } from "@/components/glass-card";
+import { Toggle } from "@/components/toggle";
+import { Colors, Fonts, Radii, Spacing } from "@/constants/theme";
+import { formatClock } from "@/lib/alarm-utils";
+import { clearAllAlarmKitAlarms } from "@/lib/alarmkit";
+import { getAlarms, getSettings, resetAllData, updateSettings } from "@/lib/db";
+import { cancelAlarmNotification } from "@/lib/scheduling";
+import { AppSettings } from "@/lib/types";
+import { rescheduleWindDownNotification } from "@/lib/wind-down-scheduling";
+import {
+  BedDouble,
+  Bell,
+  Calendar,
+  ChevronRight,
+  Info,
+  Trash,
+  Volume2,
+} from "lucide-react-native";
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -23,13 +31,13 @@ export default function SettingsScreen() {
   useFocusEffect(
     useCallback(() => {
       getSettings().then(setSettings);
-    }, [])
+    }, []),
   );
 
   async function patch(update: Partial<AppSettings>) {
     const next = await updateSettings(update);
     setSettings(next);
-    if ('windDownEnabled' in update) await rescheduleWindDownNotification(next);
+    if ("windDownEnabled" in update) await rescheduleWindDownNotification(next);
   }
 
   async function performReset() {
@@ -42,7 +50,7 @@ export default function SettingsScreen() {
     clearAllAlarmKitAlarms();
     await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
     await resetAllData();
-    router.replace('/onboarding/welcome');
+    router.replace("/onboarding/welcome");
   }
 
   function handleResetData() {
@@ -51,23 +59,26 @@ export default function SettingsScreen() {
     // speed bump beyond a plain Cancel/Confirm button pair, since this
     // wipes every alarm, all history, and settings with no way to undo it.
     Alert.prompt(
-      'Reset All Data?',
-      'This deletes every alarm, all wake history, custom sounds, and settings — and cannot be undone.\n\nType CONFIRM to continue.',
+      "Reset All Data?",
+      "This deletes every alarm, all wake history, custom sounds, and settings — and cannot be undone.\n\nType CONFIRM to continue.",
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Reset Everything',
-          style: 'destructive',
+          text: "Reset Everything",
+          style: "destructive",
           onPress: (text?: string) => {
-            if (text?.trim().toUpperCase() !== 'CONFIRM') {
-              Alert.alert('Not reset', 'You need to type CONFIRM exactly to reset your data.');
+            if (text?.trim().toUpperCase() !== "CONFIRM") {
+              Alert.alert(
+                "Not reset",
+                "You need to type CONFIRM exactly to reset your data.",
+              );
               return;
             }
             performReset();
           },
         },
       ],
-      'plain-text'
+      "plain-text",
     );
   }
 
@@ -75,7 +86,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.screen}>
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.header}>
           <Text style={styles.h1}>Settings</Text>
         </View>
@@ -90,10 +101,10 @@ export default function SettingsScreen() {
                 sub={
                   settings.bedtime
                     ? `Calming reminder & breathing screen ${settings.windDownOffsetMin} min before your ${formatClock(settings.bedtime).value} ${formatClock(settings.bedtime).ampm} bedtime`
-                    : 'Calming reminder before bed — tap to set your bedtime'
+                    : "Calming reminder before bed — tap to set your bedtime"
                 }
                 divider={false}
-                onPress={() => router.push('/wind-down-settings')}
+                onPress={() => router.push("/wind-down-settings")}
                 right={
                   <Toggle
                     value={settings.windDownEnabled}
@@ -104,7 +115,7 @@ export default function SettingsScreen() {
               <Row
                 icon={<Calendar size={18.5} color={Colors.accentDeep} />}
                 title="Calendar Auto-Shift"
-                sub="Checks 6:00–11:59 PM (not all day) and suggests moving your wake window if tomorrow's first event would conflict with it"
+                sub="Checks 1:00 PM – 11:59 PM (not all day) and suggests moving your wake window if tomorrow's first event would conflict with it"
                 right={
                   <Toggle
                     value={settings.calendarAutoShiftEnabled}
@@ -122,19 +133,19 @@ export default function SettingsScreen() {
                 icon={<Bell size={18.5} color={Colors.accentDeep} />}
                 title="Notifications"
                 divider={false}
-                onPress={() => router.push('/notifications-settings')}
+                onPress={() => router.push("/notifications-settings")}
                 right={<ChevronRight size={17.5} color={Colors.inkFaint} />}
               />
               <Row
                 icon={<Volume2 size={18.5} color={Colors.accentDeep} />}
                 title="Sound & Haptics"
-                onPress={() => router.push('/sound-haptics-settings')}
+                onPress={() => router.push("/sound-haptics-settings")}
                 right={<ChevronRight size={17.5} color={Colors.inkFaint} />}
               />
               <Row
                 icon={<Info size={18.5} color={Colors.accentDeep} />}
                 title="About BuzzBee"
-                onPress={() => router.push('/about')}
+                onPress={() => router.push("/about")}
                 right={<ChevronRight size={17.5} color={Colors.inkFaint} />}
               />
             </GlassCard>
@@ -180,10 +191,19 @@ function Row({
 }) {
   const Wrapper = onPress ? Pressable : View;
   return (
-    <Wrapper style={[styles.row, divider && styles.rowDivider]} onPress={onPress}>
-      {icon && <View style={[styles.rowIcon, danger && styles.rowIconDanger]}>{icon}</View>}
+    <Wrapper
+      style={[styles.row, divider && styles.rowDivider]}
+      onPress={onPress}
+    >
+      {icon && (
+        <View style={[styles.rowIcon, danger && styles.rowIconDanger]}>
+          {icon}
+        </View>
+      )}
       <View style={styles.rowMain}>
-        <Text style={[styles.rowTitle, danger && styles.rowTitleDanger]}>{title}</Text>
+        <Text style={[styles.rowTitle, danger && styles.rowTitleDanger]}>
+          {title}
+        </Text>
         {sub && <Text style={styles.rowSub}>{sub}</Text>}
       </View>
       {right}
@@ -201,18 +221,18 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.extraBold,
     fontSize: 14,
     color: Colors.inkFaint,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.6,
     marginBottom: Spacing.sm,
     paddingLeft: 4,
   },
   group: {
     borderRadius: Radii.md,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     padding: 14,
   },
@@ -224,14 +244,19 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 9,
-    backgroundColor: Colors.accent + '26',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: Colors.accent + "26",
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
   },
-  rowIconDanger: { backgroundColor: Colors.danger + '26' },
+  rowIconDanger: { backgroundColor: Colors.danger + "26" },
   rowMain: { flex: 1, minWidth: 0 },
   rowTitle: { fontFamily: Fonts.bold, fontSize: 16.5, color: Colors.ink },
   rowTitleDanger: { color: Colors.danger },
-  rowSub: { fontFamily: Fonts.semiBold, fontSize: 14, color: Colors.inkFaint, marginTop: 1 },
+  rowSub: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 14,
+    color: Colors.inkFaint,
+    marginTop: 1,
+  },
 });

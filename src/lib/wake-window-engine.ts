@@ -52,3 +52,24 @@ export function escalationDurationMs(alarm: Alarm): number {
   // rather than dividing by zero or ramping instantly.
   return Math.max(spanMin, 1) * 60000;
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Time left until this Wake Window alarm's hard deadline (windowEnd), or 0
+ * if the window isn't open right now (already past the deadline). Measured
+ * from windowStart, so a window that crosses midnight works too.
+ *
+ * The escalation ramp and the full-volume backstop both key off this, not
+ * the window's full length: a ring that starts late (the app came to the
+ * foreground 20 minutes into a 30-minute window) still has to reach full
+ * volume by the deadline, not 30 minutes after it started.
+ */
+export function msUntilDeadline(alarm: Alarm, now: Date = new Date()): number {
+  const [sh, sm] = alarm.windowStart.split(':').map(Number);
+  const nowMsOfDay =
+    ((now.getHours() * 60 + now.getMinutes()) * 60 + now.getSeconds()) * 1000 + now.getMilliseconds();
+  const sinceStartMs = (nowMsOfDay - (sh * 60 + sm) * 60000 + DAY_MS) % DAY_MS;
+  const spanMs = escalationDurationMs(alarm);
+  return sinceStartMs < spanMs ? spanMs - sinceStartMs : 0;
+}

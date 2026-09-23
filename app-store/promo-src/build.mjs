@@ -151,9 +151,10 @@ const slides = {
         <div class="headline">What BuzzBee<br>Can Do For You</div>
         <div class="glass list">
           ${row('bed-double', 'Bedtime Reminder', 'A calm reminder and breathing screen before bed.')}
-          ${row('calendar', 'Calendar Auto-Shift', 'A heads-up the evening before if tomorrow’s first event clashes with your wake window.')}
+          ${row('calendar', 'Calendar Auto-Shift', 'A heads-up the day before if tomorrow’s first event clashes with your wake window.')}
           ${row('calendar-check', 'Wake Calendar', 'See which mornings you finished the mission, day by day.')}
           ${row('tag', 'Name Every Alarm', '“Meds,” “Morning run” — the name shows on the alarm and when it rings.')}
+          ${row('mic', 'Record Your Own Sound', 'Your voice, a song clip, anything — up to 15 seconds, saved on your phone only.')}
         </div>
         <div class="lede">Bedtime Reminder and Calendar Auto-Shift are on by default.</div>
       </div>`,

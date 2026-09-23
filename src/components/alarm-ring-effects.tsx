@@ -16,6 +16,8 @@ import { isCustomSoundUri, isSoundName, safeAudioCall, SOUND_FILES } from '@/lib
 // straight to full volume.
 const ESCALATION_START_VOLUME = 0.15;
 const ESCALATION_STEP_MS = 500;
+// How often AlarmSoundLoop checks the sound is still playing (see its watchdog).
+const WATCHDOG_MS = 1000;
 
 export function AlarmSoundLoop({
   soundName,
@@ -45,6 +47,23 @@ export function AlarmSoundLoop({
       player.play();
     });
 
+    // Resume after an interruption. Another audio session taking over — an
+    // AlarmKit alert firing on top of this screen, a call, Siri — pauses this
+    // player, and nothing resumes it afterwards: the alarm went silent while
+    // AlarmVibration's own timer kept buzzing. For as long as this is mounted
+    // the sound is meant to be playing, so anything not playing is restarted.
+    const watchdog = setInterval(() => {
+      safeAudioCall(() => {
+        if (player.playing) return;
+        setAudioModeAsync({
+          playsInSilentMode: true,
+          interruptionMode: 'doNotMix',
+          shouldPlayInBackground: true,
+        }).catch(() => {});
+        player.play();
+      });
+    }, WATCHDOG_MS);
+
     let interval: ReturnType<typeof setInterval> | null = null;
     if (escalate) {
       const startedAt = Date.now();
@@ -61,6 +80,7 @@ export function AlarmSoundLoop({
     }
 
     return () => {
+      clearInterval(watchdog);
       if (interval) clearInterval(interval);
       safeAudioCall(() => player.pause());
     };
@@ -103,12 +123,30 @@ export function AlarmVibration() {
  * duration (windowStart to windowEnd), instead of jumping to max instantly —
  * the two ramps compound with AlarmSoundLoop's, so the alarm genuinely
  * starts quiet and builds rather than being loud from the first second.
+ *
+ * The volume is also locked for as long as this is mounted: pressing the
+ * side volume-down button snaps it straight back, so the alarm can't be
+ * turned quiet instead of finishing the mission. "Back" means the current
+ * target — max for a fixed-time ring, or the ramp's current level for a Wake
+ * Window ring (snapping to max there would throw away the gentle build).
+ * Raising the volume is always allowed.
  */
 export function DeviceVolumeBoost({ escalate, escalationMs }: { escalate: boolean; escalationMs: number }) {
   useEffect(() => {
     let previousVolume: number | null = null;
     let cancelled = false;
     let interval: ReturnType<typeof setInterval> | null = null;
+    // Null until the starting volume is known — nothing to enforce before that.
+    let target: number | null = null;
+
+    // Our own setVolume calls fire this listener too, but they only ever land
+    // at or above target, so they never trigger a correction loop.
+    const listener = VolumeManager.addVolumeListener(({ volume }) => {
+      if (cancelled || target === null) return;
+      if (volume < target - 0.01) {
+        VolumeManager.setVolume(target, { showUI: false }).catch(() => {});
+      }
+    });
 
     VolumeManager.getVolume()
       .then((result) => {
@@ -116,16 +154,17 @@ export function DeviceVolumeBoost({ escalate, escalationMs }: { escalate: boolea
         previousVolume = result.volume;
 
         if (!escalate) {
+          target = 1;
           return VolumeManager.setVolume(1, { showUI: false });
         }
 
         const startVolume = result.volume;
         const startedAt = Date.now();
+        target = startVolume;
         interval = setInterval(() => {
           const progress = Math.min(1, (Date.now() - startedAt) / escalationMs);
-          VolumeManager.setVolume(startVolume + (1 - startVolume) * progress, {
-            showUI: false,
-          }).catch(() => {});
+          target = startVolume + (1 - startVolume) * progress;
+          VolumeManager.setVolume(target, { showUI: false }).catch(() => {});
           if (progress >= 1 && interval) {
             clearInterval(interval);
             interval = null;
@@ -136,6 +175,7 @@ export function DeviceVolumeBoost({ escalate, escalationMs }: { escalate: boolea
 
     return () => {
       cancelled = true;
+      listener.remove();
       if (interval) clearInterval(interval);
       if (previousVolume !== null) {
         VolumeManager.setVolume(previousVolume, { showUI: false }).catch(() => {});

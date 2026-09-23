@@ -81,9 +81,9 @@ there's under 45 minutes of buffer before the alarm's hard deadline — it never
 edits the calendar.
 
 To test: add a calendar event for tomorrow starting at/before an enabled
-alarm's hard deadline, then foreground the app after 6:00 PM local time
-(evening-only, once per calendar day — force-quit and relaunch if you already
-opened the app tonight). A notification appears within seconds: "Shift your
+alarm's hard deadline, then foreground the app between 1:00 PM and 11:59 PM
+local time (once per calendar day — force-quit and relaunch if you already
+opened the app since 1:00 PM today). A notification appears within seconds: "Shift your
 wake window? — Tomorrow's [event] is at [time] — move to [time]–[time]?"
 There's no auto-apply toggle in the UI yet, so this confirm-first notification
 is the only reachable behavior — seeing it is proof enough; no need to tap it

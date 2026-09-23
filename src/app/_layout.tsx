@@ -11,7 +11,7 @@ import * as Notifications from 'expo-notifications';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -21,21 +21,18 @@ import { useBackgroundKeepAlive } from '@/hooks/use-background-keep-alive';
 import { useEveningCalendarCheck } from '@/hooks/use-evening-calendar-check';
 import { useWakeWindowMonitor } from '@/hooks/use-wake-window-monitor';
 import { AlarmDraftProvider, useAlarmDraft } from '@/lib/alarm-draft-context';
-import {
-  armConfirmationAlarm,
-  checkAlarmKitLaunch,
-  configureAlarmKit,
-  CONFIRMATION_ALARM_DELAY_SEC,
-} from '@/lib/alarmkit';
+import { AlarmLaunch as PendingAlarmLaunch, resolveAlarmKitLaunch } from '@/lib/alarm-launch';
+import { checkAlarmKitLaunch, configureAlarmKit } from '@/lib/alarmkit';
 import { isoMatchesTime } from '@/lib/alarm-utils';
 import { getAlarm, getSettings, getWakeEventToday } from '@/lib/db';
-import { dedupKey, markTriggeredToday } from '@/lib/ring-dedup';
 import { rescheduleWindDownNotification } from '@/lib/wind-down-scheduling';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 configureAlarmKit();
 
-type PendingAlarmLaunch = { alarmId: string; triggeredBy: 'window-start' | 'hard-deadline' };
+// How long the native splash stays up after a launch redirect — covers the
+// incoming screen's full-screen-modal slide-in so Home never shows under it.
+const REDIRECT_SPLASH_HOLD_MS = 650;
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -64,6 +61,8 @@ export default function RootLayout() {
   // Ringing screen to mount. Arming it here instead closes that gap down to
   // just this synchronous check + one DB read, however long Home would have
   // taken to render is no longer part of the window at all.
+  // (Warm launches — the app already alive in the background — never reach
+  // this effect again; useWakeWindowMonitor handles those on foreground.)
   useEffect(() => {
     (async () => {
       const alarmId = checkAlarmKitLaunch();
@@ -71,30 +70,20 @@ export default function RootLayout() {
         setAlarmLaunchChecked(true);
         return;
       }
-      const alarm = await getAlarm(alarmId);
-      if (alarm) {
-        // Mark this alarm as already-rung *before* navigating —
-        // useWakeWindowMonitor shares this same dedup set (lib/ring-dedup.ts)
-        // and starts ticking fresh on every cold launch, with no idea
-        // AlarmKit already handled this alarm. Without marking it here, its
-        // next 5s tick sees the same overdue deadline and pushes a second,
-        // duplicate /ringing screen.
-        markTriggeredToday(dedupKey(alarm.id));
-        armConfirmationAlarm(alarm, CONFIRMATION_ALARM_DELAY_SEC).catch(() => {});
-      }
-      setPendingAlarmLaunch({
-        alarmId,
-        triggeredBy: alarm?.smartWakeEnabled ? 'window-start' : 'hard-deadline',
-      });
+      setPendingAlarmLaunch(await resolveAlarmKitLaunch(alarmId));
       setAlarmLaunchChecked(true);
     })();
   }, []);
 
   const ready = fontsLoaded && hasOnboarded !== null && alarmLaunchChecked;
 
+  // When AppShell is about to redirect (onboarding, or an AlarmKit launch
+  // into the mission), it hides the splash itself once the redirect has
+  // landed — hiding it here would reveal Home under the incoming screen.
+  const redirecting = hasOnboarded === false || pendingAlarmLaunch !== null;
   useEffect(() => {
-    if (ready) SplashScreen.hideAsync().catch(() => {});
-  }, [ready]);
+    if (ready && !redirecting) SplashScreen.hideAsync().catch(() => {});
+  }, [ready, redirecting]);
 
   if (!ready) {
     return <View style={{ flex: 1, backgroundColor: Colors.bg }} />;
@@ -122,18 +111,22 @@ function AppShell({
   const pathname = usePathname();
   const { setDraft } = useAlarmDraft();
 
-  useWakeWindowMonitor();
+  const covering = useWakeWindowMonitor();
   useEveningCalendarCheck();
   useBackgroundKeepAlive();
 
   // Redirect to onboarding, or straight into a pending AlarmKit launch (see
-  // RootLayout, which already resolved and armed it), before the native
-  // splash screen is hidden so Home never flashes first.
+  // RootLayout, which already resolved and armed it). The native splash stays
+  // up until the new screen has finished presenting, so Home never flashes
+  // first — the ringing screen slides in as a full-screen modal over Home.
   useEffect(() => {
     if (!initialHasOnboarded) {
       router.replace('/onboarding/welcome');
     } else if (pendingAlarmLaunch) {
       router.replace({ pathname: '/ringing', params: pendingAlarmLaunch });
+    }
+    if (!initialHasOnboarded || pendingAlarmLaunch) {
+      setTimeout(() => SplashScreen.hideAsync().catch(() => {}), REDIRECT_SPLASH_HOLD_MS);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -253,7 +246,35 @@ function AppShell({
           options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
         />
       </Stack>
-      {showCreateButton && <CreateAlarmButton />}
+      {showCreateButton && !covering && <CreateAlarmButton />}
+      {covering && <LaunchCover />}
     </View>
   );
 }
+
+/**
+ * Full-screen stand-in for the native splash (same image, size and
+ * background, so it reads as one continuous launch screen). Shown while an
+ * alarm that came due in the background is being opened, so Home is never
+ * visible — or tappable — before the mission screen is up. It sits above the
+ * whole Stack and swallows touches.
+ */
+function LaunchCover() {
+  return (
+    <View style={styles.cover} pointerEvents="auto">
+      <Image source={require('../../assets/images/splash-icon.png')} style={styles.coverImage} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  cover: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: Colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+  },
+  // Matches app.json's expo-splash-screen imageWidth (180); the image is 600x610.
+  coverImage: { width: 180, height: 183 },
+});

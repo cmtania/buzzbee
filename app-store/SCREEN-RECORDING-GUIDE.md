@@ -90,17 +90,18 @@ travel over, on camera, while the feature is used start to finish.
 
 This one is gated by real-world timing, so plan the recording session around it
 rather than trying to force it — see `APP-REVIEW-GUIDE.md`'s CALENDAR section for
-the exact rule (checks only run after 6:00 PM local time, once per calendar day).
+the exact rule (checks only run between 1:00 PM and 11:59 PM local time, once per
+calendar day).
 
 1. Beforehand, in the **iOS Calendar app**, add a real timed event for **tomorrow**
    that starts at or before one of your enabled alarms' hard deadline (so it's an
    unambiguous conflict — no need to cut it close).
 2. Confirm **Settings → Smart Features → Calendar Auto-Shift** is on (it's on by
    default).
-3. Make sure it's actually after 6:00 PM local time on camera — the status bar
-   clock is your proof. (If you already opened the app once tonight before adding
-   the event, force-quit and relaunch first, since the check only runs once per
-   day.)
+3. Make sure it's between 1:00 PM and 11:59 PM local time on camera — the status
+   bar clock is your proof. (If you already opened the app after 1:00 PM today
+   before adding the event, force-quit and relaunch first, since the check only
+   runs once per day.)
 4. Foreground/open BuzzBee — the check runs automatically within a few seconds of
    launch, no button to tap.
 5. A local notification appears: **"Shift your wake window?"** with the
@@ -135,8 +136,8 @@ New Sound) entirely in Airplane Mode, to demonstrate the recording never has
 network access to be uploaded over — it's saved to local device storage only.
 
 [w]–end — Calendar Auto-Shift: a real event added for tomorrow that conflicts
-with an alarm's hard deadline, checked after 6:00 PM local time (visible on the
-status bar clock), producing a "Shift your wake window?" notification with no
+with an alarm's hard deadline, checked between 1:00 PM and 11:59 PM local time
+(visible on the status bar clock), producing a "Shift your wake window?" notification with no
 interaction beyond opening the app.
 ```
 

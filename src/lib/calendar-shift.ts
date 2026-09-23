@@ -75,6 +75,8 @@ export async function checkTomorrowConflict(alarm: Alarm): Promise<ConflictResul
 }
 
 const ranForDate = new Set<string>();
+/** Earliest local hour (24h) the daily check may run: 13 = 1:00 PM. */
+const CHECK_FROM_HOUR = 13;
 
 /**
  * Checks every enabled, calendar-auto-shift-eligible alarm against tomorrow's
@@ -84,8 +86,13 @@ const ranForDate = new Set<string>();
  * why this isn't (yet) a true background task.
  */
 export async function runEveningCalendarCheck(now: Date = new Date()): Promise<void> {
-  if (now.getHours() < 18) return;
-  const todayKey = now.toISOString().slice(0, 10);
+  // Runs from 1:00 PM to 11:59 PM local time — early enough that the nudge
+  // arrives while there's still plenty of the day left to act on it.
+  if (now.getHours() < CHECK_FROM_HOUR) return;
+  // Local calendar date, not toISOString() (UTC): west of UTC, a 1 PM–midnight
+  // window crosses the UTC date line, so a UTC key could let the check run
+  // twice in one local afternoon/evening.
+  const todayKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
   if (ranForDate.has(todayKey)) return;
 
   const settings = await getSettings();

@@ -31,9 +31,11 @@ of these tests.
       "What BuzzBee can do for you" (informational, no toggles) → Choose a Mission →
       Ringer Check → Summary. Progress bar fills smoothly across all 8, reaching
       100% on the Summary screen.
-- [ ] "What BuzzBee can do for you" screen: confirm there are **two** rows
-      (Bedtime Reminder, Calendar Auto-Shift) and **neither** has a toggle —
-      purely informational.
+- [ ] "What BuzzBee can do for you" screen: confirm there are **five** rows in
+      one glass card (Bedtime Reminder, Calendar Auto-Shift, Wake Calendar,
+      Name Every Alarm, Record Your Own Sound) and **none** has a toggle —
+      purely informational. On a small phone the list scrolls and the Continue
+      button stays reachable.
 - [ ] Ringer Check screen: tap Play — volume audibly ramps up over ~8 seconds
       (not instant full volume). Toggle Vibrate off/on and confirm the phone
       actually buzzes only while it's on and playing.
@@ -51,6 +53,26 @@ of these tests.
 - [ ] Tap the alert — launches straight into the mission screen, not Home —
       and confirm the name entered above appears on the ringing screen too.
 - [ ] Solve the mission — alarm stops, lands on Mission Complete.
+- [ ] Repeat with the app **backgrounded, not force-quit** (open BuzzBee, go
+      to the Home Screen, lock the phone, media volume turned low). At the
+      deadline it must ring at **full volume** (AlarmKit's native alert, not a
+      quiet in-app ring).
+- [ ] From that same backgrounded state, tap the AlarmKit alert — you should
+      see the bee splash, then the mission screen. Home must **never** appear
+      or be tappable in between.
+- [ ] Same again, but instead of tapping the alert, unlock and open BuzzBee
+      from its Home Screen icon — same result: bee splash, then the mission.
+- [ ] With **no** alarm due, switch away from BuzzBee and back a few times —
+      no bee splash; it returns straight to where you were.
+- [ ] Let an alarm ring and sit on the mission screen **without solving it for
+      5+ minutes**, phone unlocked and on screen. No AlarmKit alert should pop
+      up over it, and the sound must keep playing the whole time.
+- [ ] Now lock the phone while the mission screen is ringing and wait — within
+      ~90s the AlarmKit alert fires at full volume. Tap it: back on the mission
+      screen, with the **sound playing again** (not just vibrating).
+- [ ] While the mission screen is ringing, press volume-down repeatedly — the
+      volume snaps back to max each time. (On a Wake Window alarm it snaps
+      back to the ramp's current level instead, not max.)
 - [ ] Separately, create/edit an alarm leaving the name blank — confirm no name
       row appears on its Home card or ringing screen (not a blank line, not a
       placeholder — nothing).
@@ -65,6 +87,25 @@ of these tests.
 - [ ] Leave it running (don't dismiss yet) — volume audibly climbs over the next
       couple of minutes, reaching full volume by the window's end.
 - [ ] Dismiss the mission — confirm it stops.
+- [ ] **Deadline backstop.** Same setup, but a 3-minute window, the app
+      **backgrounded (not force-quit)**, the phone locked, and media volume
+      turned almost all the way down. Don't touch it. The gentle in-app ring
+      may stay quiet — that's the case this covers: **at the hard deadline,
+      AlarmKit's native alert must ring at full volume.** Also confirm nothing
+      full-volume fires *before* the deadline (the gentle build shouldn't be
+      cut off after 90 seconds anymore).
+- [ ] Tap that deadline alert — the mission opens ringing at **full volume
+      straight away**, not restarting the quiet build.
+
+## 3b. Repeating alarm still rings the next day
+
+The one test that needs two days. Before this fix, dismissing a repeating
+alarm removed its native registration for every future day.
+
+- [ ] Create a repeating alarm (e.g. every day) a couple of minutes out. Let it
+      ring and finish the mission.
+- [ ] **Force-quit** BuzzBee and don't open it again.
+- [ ] Next day, at the same time, it must ring (AlarmKit alert, full volume).
 
 ## 4. All six missions at least once
 
@@ -120,9 +161,11 @@ actually dismisses on completion:
 - [ ] Settings → Bedtime Reminder — set a bedtime a few minutes from now, confirm
       the notification fires and tapping it opens the breathing screen (not Home).
 - [ ] Add a real Calendar event for tomorrow starting before one of your alarms'
-      hard deadline. After 6:00 PM local time, foreground BuzzBee (force-quit and
-      relaunch first if you'd already opened it once today) — a "Shift your wake
-      window?" notification appears within a few seconds.
+      hard deadline. Between 1:00 PM and 11:59 PM local time, foreground BuzzBee
+      (force-quit and relaunch first if you'd already opened it since 1:00 PM
+      today) — a "Shift your wake window?" notification appears within a few
+      seconds.
+- [ ] Before 1:00 PM, the same setup must **not** produce a notification.
 
 ## 7. History — calendar view
 

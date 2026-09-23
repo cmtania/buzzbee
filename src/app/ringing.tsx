@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Accelerometer } from 'expo-sensors';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { AppState, StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
@@ -11,12 +11,13 @@ import { AlarmSoundLoop, AlarmVibration, DeviceVolumeBoost } from '@/components/
 import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
 import { useMicMetering } from '@/hooks/use-mic-metering';
 import { AudioWaveform, Check, Delete, Eye, X } from 'lucide-react-native';
-import { armConfirmationAlarm, CONFIRMATION_ALARM_DELAY_SEC, disarmConfirmationAlarm } from '@/lib/alarmkit';
+import { confirmationDelaySec } from '@/lib/alarm-launch';
+import { armConfirmationAlarm, disarmConfirmationAlarm } from '@/lib/alarmkit';
 import { useAlarmDraft } from '@/lib/alarm-draft-context';
 import { addAlarmTrigger, addWakeEvent, getAlarm } from '@/lib/db';
-import { cancelAlarmNotification } from '@/lib/scheduling';
+import { cancelAlarmNotification, scheduleAlarmNotification } from '@/lib/scheduling';
 import { Alarm, BUZZ_TARGET, CLAP_TARGET, DismissMethod, SHAKE_TARGET, TAP_TARGET } from '@/lib/types';
-import { escalationDurationMs } from '@/lib/wake-window-engine';
+import { msUntilDeadline } from '@/lib/wake-window-engine';
 import { genId } from '@/lib/id';
 import { MISSION_ORDER, missionLabel } from '@/lib/mission-meta';
 
@@ -35,6 +36,9 @@ const MIC_MISSIONS: DismissMethod[] = ['clap', 'buzz'];
 // the mission resets to 0, rather than staying silently "in progress"
 // forever.
 const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000;
+// How often the confirmation alarm is pushed back while this screen is open
+// and on screen. Well under its 90s minimum delay, so it can't fire in between.
+const CONFIRMATION_HEARTBEAT_MS = 30 * 1000;
 
 // "<Verb> to dismiss" pill-eyebrow copy, per design/Ringing*.dc.html.
 const MISSION_VERBS: Record<DismissMethod, string> = {
@@ -84,6 +88,12 @@ export default function RingingScreen() {
   const effectiveMission = isPreview ? previewMission : alarmMission;
   const [alarmLoaded, setAlarmLoaded] = useState(!params.alarmId);
   const startedAt = useRef(Date.now());
+  // Set once dismiss() starts, so the heartbeat below can't re-arm the
+  // confirmation alarm after dismiss has disarmed it.
+  const dismissing = useRef(false);
+  const heartbeatInFlight = useRef<Promise<void> | null>(null);
+  // Time left to the hard deadline when this ring started; 0 = no ramp.
+  const [rampMs, setRampMs] = useState(0);
   const [now, setNow] = useState(new Date());
 
   // For Clap/Buzz (see needsMissionGate below): 'ringing' = sound playing,
@@ -119,7 +129,11 @@ export default function RingingScreen() {
         // fully OS-native, and relaunches straight back into this mission —
         // backed by AlarmKit instead of a JS timer, for when the app
         // doesn't survive to see INACTIVITY_TIMEOUT_MS's own JS timer below.
-        armConfirmationAlarm(a, CONFIRMATION_ALARM_DELAY_SEC).catch(() => {});
+        armConfirmationAlarm(a, confirmationDelaySec(a)).catch(() => {});
+        // Fixed once at load, not recomputed per render: the clock re-renders
+        // this screen every second, and a changing escalationMs would restart
+        // the ramp each time.
+        setRampMs(params.triggeredBy === 'window-start' ? msUntilDeadline(a) : 0);
         // For History's calendar: records that this alarm rang today,
         // independent of whether the mission ever gets completed (WakeEvent
         // is only recorded on an actual dismiss, in dismiss() below). At
@@ -129,9 +143,25 @@ export default function RingingScreen() {
       }
       setAlarmLoaded(true);
     });
-  }, [params.alarmId]);
+  }, [params.alarmId, params.triggeredBy]);
 
   const dataReady = alarmLoaded;
+
+  // Keep the confirmation alarm from firing on top of this screen. It exists
+  // for when the mission gets abandoned — the app force-quit, the phone locked
+  // and left — but it was armed once and then fired regardless, even with this
+  // screen open and ringing right in front of the user. Re-arming it every 30s
+  // (only while the app is in the foreground) keeps pushing it out of reach.
+  // The moment that stops — app killed, or backgrounded — the last re-arm
+  // still fires, as intended: within 90s, or at a Wake Window's deadline.
+  useEffect(() => {
+    if (isPreview || !alarm) return;
+    const id = setInterval(() => {
+      if (dismissing.current || AppState.currentState !== 'active') return;
+      heartbeatInFlight.current = armConfirmationAlarm(alarm, confirmationDelaySec(alarm)).catch(() => {});
+    }, CONFIRMATION_HEARTBEAT_MS);
+    return () => clearInterval(id);
+  }, [alarm, isPreview]);
 
   // Only Clap/Buzz need the explicit Start Mission gate — they're the only
   // missions that conflict with the alarm sound (their own mic detection
@@ -187,6 +217,10 @@ export default function RingingScreen() {
 
   async function dismiss() {
     clearInactivityTimer();
+    dismissing.current = true;
+    // A re-arm already in flight could otherwise land after the disarm below
+    // and leave a stray confirmation alarm ringing 90s after a real dismissal.
+    if (heartbeatInFlight.current) await heartbeatInFlight.current;
     if (isPreview) {
       // Nothing to record or cancel — just leave the preview.
       router.back();
@@ -207,6 +241,16 @@ export default function RingingScreen() {
         triggeredBy: params.triggeredBy === 'window-start' ? 'window-start' : 'hard-deadline',
         dismissedAfterSeconds: Math.round((Date.now() - startedAt.current) / 1000),
       });
+      // Re-arm the next occurrence. cancelAlarmNotification above removed the
+      // whole AlarmKit registration and the backup notification — for a
+      // repeating alarm that included every future day, so without this the
+      // next morning had no native alarm at all and only rang if the app
+      // happened to still be running. Must run after addWakeEvent: the
+      // scheduler reads today's WakeEvent to skip re-ringing later today.
+      // One-off alarms aren't re-armed, same as before.
+      if (alarm.enabled && alarm.repeatDays.length > 0) {
+        await scheduleAlarmNotification(alarm).catch(() => {});
+      }
     }
     router.replace('/mission-complete');
   }
@@ -254,8 +298,12 @@ export default function RingingScreen() {
   // starts quiet right when the window opens and ramps to full volume by
   // windowEnd; a hard-deadline (fixed-time) ring has no slack left and goes
   // straight to full volume.
-  const escalate = params.triggeredBy === 'window-start';
-  const escalationMs = alarm ? escalationDurationMs(alarm) : 0;
+  // The ramp ends at the deadline itself (msUntilDeadline), not the window's
+  // full length after the ring began — a ring that starts late in the window
+  // still reaches full volume on time. Opened at/after the deadline (e.g. from
+  // the deadline backstop), rampMs is 0 and it rings at full volume at once.
+  const escalate = rampMs > 0;
+  const escalationMs = rampMs;
 
   const statusText = isPreview
     ? 'Preview — this alarm isn’t really ringing'
