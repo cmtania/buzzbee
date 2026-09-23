@@ -8,18 +8,25 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
 import { AlarmSoundLoop, AlarmVibration, DeviceVolumeBoost } from '@/components/alarm-ring-effects';
-import { BackspaceIcon, WaveformIcon } from '@/components/icons';
-import { RingingWaveBackground } from '@/components/ringing-wave-background';
 import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
 import { useMicMetering } from '@/hooks/use-mic-metering';
+import { AudioWaveform, Check, Delete, Eye, X } from 'lucide-react-native';
 import { armConfirmationAlarm, CONFIRMATION_ALARM_DELAY_SEC, disarmConfirmationAlarm } from '@/lib/alarmkit';
+import { useAlarmDraft } from '@/lib/alarm-draft-context';
 import { addAlarmTrigger, addWakeEvent, getAlarm } from '@/lib/db';
-import { cancelHybridTaskChain, scheduleHybridTaskChain } from '@/lib/hybrid-tasks';
 import { cancelAlarmNotification } from '@/lib/scheduling';
 import { Alarm, BUZZ_TARGET, CLAP_TARGET, DismissMethod, SHAKE_TARGET, TAP_TARGET } from '@/lib/types';
 import { escalationDurationMs } from '@/lib/wake-window-engine';
 import { genId } from '@/lib/id';
 import { MISSION_ORDER, missionLabel } from '@/lib/mission-meta';
+
+// Dark palette, matching the Bedtime (wind-down) screen so the two
+// full-screen takeover moments read as the same surface.
+const DARK_BG = '#1B1712';
+const TEXT = '#FFFFFF';
+const TEXT_SOFT = '#B8A98E';
+const SURFACE = 'rgba(255,255,255,0.08)';
+const SURFACE_BORDER = 'rgba(255,255,255,0.16)';
 
 const RANDOMIZABLE: DismissMethod[] = MISSION_ORDER.filter((m) => m !== 'random');
 const MIC_MISSIONS: DismissMethod[] = ['clap', 'buzz'];
@@ -48,9 +55,33 @@ function minutesUntilDeadline(alarm: Alarm, now: Date): number {
 
 export default function RingingScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ alarmId?: string; triggeredBy?: string }>();
+  const { draft, setDraft } = useAlarmDraft();
+  const params = useLocalSearchParams<{
+    alarmId?: string;
+    triggeredBy?: string;
+    preview?: string;
+    mission?: string;
+  }>();
+  // Preview mode (from Choose Mission's Preview button): the real screen,
+  // driven by a mission picked in the params instead of a saved alarm —
+  // but deliberately inert. No sound, no vibration, no volume boost, no
+  // AlarmKit arming, no WakeEvent/trigger rows: it's a look at the UI and a
+  // chance to try the mission, not a ring that history should remember.
+  const isPreview = params.preview === '1';
   const [alarm, setAlarm] = useState<Alarm | null>(null);
-  const [effectiveMission, setEffectiveMission] = useState<DismissMethod | null>(null);
+  // The real path resolves its mission from the loaded alarm row; preview
+  // has no row, so it resolves from the route param instead — once, in a
+  // lazy initializer rather than an effect, so re-renders can't re-roll
+  // which mission a "Random" preview landed on.
+  const [alarmMission, setAlarmMission] = useState<DismissMethod | null>(null);
+  const [previewMission] = useState<DismissMethod | null>(() => {
+    const requested = params.mission as DismissMethod | undefined;
+    if (params.preview !== '1' || !requested) return null;
+    return requested === 'random'
+      ? RANDOMIZABLE[Math.floor(Math.random() * RANDOMIZABLE.length)]
+      : requested;
+  });
+  const effectiveMission = isPreview ? previewMission : alarmMission;
   const [alarmLoaded, setAlarmLoaded] = useState(!params.alarmId);
   const startedAt = useRef(Date.now());
   const [now, setNow] = useState(new Date());
@@ -75,7 +106,7 @@ export default function RingingScreen() {
     getAlarm(params.alarmId).then((a) => {
       setAlarm(a);
       if (a) {
-        setEffectiveMission(
+        setAlarmMission(
           a.dismissMethod === 'random'
             ? RANDOMIZABLE[Math.floor(Math.random() * RANDOMIZABLE.length)]
             : a.dismissMethod
@@ -89,14 +120,6 @@ export default function RingingScreen() {
         // backed by AlarmKit instead of a JS timer, for when the app
         // doesn't survive to see INACTIVITY_TIMEOUT_MS's own JS timer below.
         armConfirmationAlarm(a, CONFIRMATION_ALARM_DELAY_SEC).catch(() => {});
-        // Hybrid Alarm tasks only make sense once you're actually awake —
-        // provisionally cancel today's task notifications the moment the
-        // main alarm actually rings, and only restore them in dismiss()
-        // below if the mission genuinely gets completed. If it never does
-        // (ignored, slept through, force-quit and never reopened), they
-        // simply stay cancelled — never firing a "you're awake" reminder for
-        // a wake-up that didn't happen.
-        cancelHybridTaskChain(a.id).catch(() => {});
         // For History's calendar: records that this alarm rang today,
         // independent of whether the mission ever gets completed (WakeEvent
         // is only recorded on an actual dismiss, in dismiss() below). At
@@ -164,16 +187,14 @@ export default function RingingScreen() {
 
   async function dismiss() {
     clearInactivityTimer();
+    if (isPreview) {
+      // Nothing to record or cancel — just leave the preview.
+      router.back();
+      return;
+    }
     if (alarm) {
       await disarmConfirmationAlarm(alarm.id);
-      // false: only clear today's already-rung instance of the main alarm —
-      // the Hybrid Alarm task chain is handled explicitly below instead of
-      // by this call (see cancelAlarmNotification's doc comment).
-      await cancelAlarmNotification(alarm.id, false);
-      // The mission is genuinely done now — restore the task chain that was
-      // provisionally cancelled the moment this alarm started ringing (see
-      // the alarm-load effect above), so today's follow-up reminders proceed.
-      await scheduleHybridTaskChain(alarm);
+      await cancelAlarmNotification(alarm.id);
       const deadline = new Date();
       const [hh, mm] = alarm.windowEnd.split(':').map(Number);
       deadline.setHours(hh, mm, 0, 0);
@@ -189,6 +210,23 @@ export default function RingingScreen() {
     }
     router.replace('/mission-complete');
   }
+
+  // Preview only: commit the mission being previewed to the alarm draft and
+  // go straight back to the form. Both this screen and the Choose Mission
+  // sheet it was opened from sit above add-edit in the stack, so dismissTo
+  // pops past the sheet rather than landing back on the list we just chose
+  // from. Uses params.mission, not the resolved effectiveMission — previewing
+  // "Random" should save Random, not the one it happened to roll.
+  function pickMission() {
+    const requested = params.mission as DismissMethod | undefined;
+    if (requested) setDraft((d) => ({ ...d, dismissMethod: requested }));
+    router.dismissTo('/add-edit');
+  }
+
+  // Preview has no saved alarm row to read a name off, so it shows the name
+  // currently typed into the form it was launched from. Empty until the
+  // person names the alarm, same as the real screen when a label was never set.
+  const displayLabel = isPreview ? draft.label : (alarm?.label ?? '');
 
   const clockLabel = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const [clockValue, clockAmpm] = clockLabel.split(' ');
@@ -210,7 +248,7 @@ export default function RingingScreen() {
   // see DeviceVolumeBoost's comment for why that's a different thing) for
   // as long as the alarm is genuinely trying to wake someone. Same scope as
   // vibration: stays on through the Start-Mission gate and Clap/Buzz attempts.
-  const shouldBoostVolume = dataReady && !!effectiveMission;
+  const shouldBoostVolume = dataReady && !!effectiveMission && !isPreview;
 
   // Gentle escalation (secondary differentiator #1): a Wake Window alarm
   // starts quiet right when the window opens and ramps to full volume by
@@ -219,8 +257,9 @@ export default function RingingScreen() {
   const escalate = params.triggeredBy === 'window-start';
   const escalationMs = alarm ? escalationDurationMs(alarm) : 0;
 
-  const statusText =
-    params.triggeredBy === 'window-start'
+  const statusText = isPreview
+    ? 'Preview — this alarm isn’t really ringing'
+    : params.triggeredBy === 'window-start'
       ? alarm
         ? `Wake Window · ${minutesUntilDeadline(alarm, now)} min until deadline`
         : 'Wake Window'
@@ -233,15 +272,19 @@ export default function RingingScreen() {
       )}
       {shouldVibrate && <AlarmVibration />}
       {shouldBoostVolume && <DeviceVolumeBoost escalate={escalate} escalationMs={escalationMs} />}
-      <RingingWaveBackground />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.top}>
           <Text style={styles.clock}>
             {clockValue}
             <Text style={styles.ampm}> {clockAmpm}</Text>
           </Text>
-          <View style={styles.statusPill}>
-            <WaveformIcon size={14} color={Colors.accentDeep} />
+          {!!displayLabel && <Text style={styles.alarmLabel}>{displayLabel}</Text>}
+          <View style={[styles.statusPill, isPreview && styles.statusPillPreview]}>
+            {isPreview ? (
+              <Eye size={18} color={Colors.accent} />
+            ) : (
+              <AudioWaveform size={18} color={Colors.accent} />
+            )}
             <Text style={styles.statusText}>{statusText}</Text>
           </View>
         </View>
@@ -285,7 +328,29 @@ export default function RingingScreen() {
           </View>
         </View>
 
-        <Text style={styles.caption}>Snoozing is disabled — finish the mission to dismiss.</Text>
+        <View style={styles.footer}>
+          <Text style={styles.caption}>
+            {isPreview
+              ? 'Try the mission — finishing it just closes this preview.'
+              : 'Snoozing is disabled — finish the mission to dismiss.'}
+          </Text>
+          {isPreview && (
+            <View style={styles.previewActions}>
+              <Pressable
+                style={[styles.actionBtn, styles.closeAction]}
+                onPress={() => router.back()}>
+                <X size={20} color={TEXT} />
+                <Text style={styles.closeActionText}>Close</Text>
+              </Pressable>
+              <Pressable style={[styles.actionBtn, styles.pickAction]} onPress={pickMission}>
+                <Check size={20} color="#2B2420" />
+                <Text style={styles.pickActionText} numberOfLines={1}>
+                  Pick this mission
+                </Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -357,7 +422,7 @@ function MathMission({ onSolved, onActivity }: { onSolved: () => void } & Missio
             disabled={key === 'ghost'}
             onPress={() => press(key)}>
             {key === 'back' ? (
-              <BackspaceIcon size={28} />
+              <Delete size={32} color={TEXT} />
             ) : key === 'ghost' ? null : (
               <Text style={styles.keyText}>{key}</Text>
             )}
@@ -547,12 +612,12 @@ function MicPermissionFallback({
 function ShakeArt() {
   return (
     <Svg width={230} height={120} viewBox="0 0 230 120" fill="none">
-      <Path d="M66 40 Q46 60 66 80" stroke="#2B2420" strokeWidth={4.5} strokeLinecap="round" opacity={0.55} />
-      <Path d="M42 26 Q14 60 42 94" stroke="#2B2420" strokeWidth={4.5} strokeLinecap="round" opacity={0.3} />
-      <Path d="M164 40 Q184 60 164 80" stroke="#2B2420" strokeWidth={4.5} strokeLinecap="round" opacity={0.55} />
-      <Path d="M188 26 Q216 60 188 94" stroke="#2B2420" strokeWidth={4.5} strokeLinecap="round" opacity={0.3} />
-      <Rect x="93" y="12" width={44} height={96} rx={12} fill="#fff" stroke="#2B2420" strokeWidth={4.5} transform="rotate(-13 115 60)" />
-      <Rect x="101" y="24" width={28} height={66} rx={6} fill={Colors.accent} opacity={0.4} transform="rotate(-13 115 60)" />
+      <Path d="M66 40 Q46 60 66 80" stroke={TEXT} strokeWidth={4.5} strokeLinecap="round" opacity={0.6} />
+      <Path d="M42 26 Q14 60 42 94" stroke={TEXT} strokeWidth={4.5} strokeLinecap="round" opacity={0.3} />
+      <Path d="M164 40 Q184 60 164 80" stroke={TEXT} strokeWidth={4.5} strokeLinecap="round" opacity={0.6} />
+      <Path d="M188 26 Q216 60 188 94" stroke={TEXT} strokeWidth={4.5} strokeLinecap="round" opacity={0.3} />
+      <Rect x="93" y="12" width={44} height={96} rx={12} fill={DARK_BG} stroke={TEXT} strokeWidth={4.5} transform="rotate(-13 115 60)" />
+      <Rect x="101" y="24" width={28} height={66} rx={6} fill={Colors.accent} opacity={0.55} transform="rotate(-13 115 60)" />
     </Svg>
   );
 }
@@ -577,7 +642,7 @@ function BuzzArt() {
     <Svg width={260} height={96} viewBox="0 0 260 96" fill="none">
       <Defs>
         <LinearGradient id="buzzGrad" x1="0" y1="0" x2="1" y2="0">
-          <Stop offset="0%" stopColor={Colors.accentDeep} />
+          <Stop offset="0%" stopColor={Colors.accent} />
           <Stop offset="100%" stopColor="#F6D488" />
         </LinearGradient>
       </Defs>
@@ -592,26 +657,40 @@ function BuzzArt() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#f0f0f0' },
+  screen: { flex: 1, backgroundColor: DARK_BG },
   safeArea: { flex: 1, alignItems: 'center' },
-  top: { alignItems: 'center', paddingTop: Spacing.xxxl + 24 },
-  clock: { fontFamily: Fonts.extraBold, fontSize: 88, color: '#fff' },
-  ampm: { fontFamily: Fonts.bold, fontSize: 26, color: '#fff', opacity: 0.85 },
+  // alignSelf stretch (not horizontal padding) on purpose: the pill below
+  // needs a definite parent width for its flexShrink to bite, while the 101pt
+  // clock needs every point of that width to stay on one line.
+  top: { alignItems: 'center', alignSelf: 'stretch', paddingTop: Spacing.xxl },
+  clock: { fontFamily: Fonts.extraBold, fontSize: 101, color: TEXT },
+  ampm: { fontFamily: Fonts.bold, fontSize: 34, color: TEXT, opacity: 0.85 },
+  alarmLabel: {
+    fontFamily: Fonts.extraBold,
+    fontSize: 26,
+    color: TEXT,
+    marginTop: 4,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.xxl,
+  },
   statusPill: {
     marginTop: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#fff',
+    // The preview copy is long; let the pill and its label shrink/wrap
+    // rather than run off the edges of a narrow screen.
+    flexShrink: 1,
+    marginHorizontal: Spacing.xl,
+    gap: 8,
+    backgroundColor: SURFACE,
+    borderWidth: 1,
+    borderColor: SURFACE_BORDER,
     borderRadius: Radii.pill,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    shadowColor: '#2B2420',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
   },
-  statusText: { fontFamily: Fonts.extraBold, fontSize: 11.5, color: Colors.accentDeep },
+  statusPillPreview: { borderColor: Colors.accent },
+  statusText: { fontFamily: Fonts.extraBold, fontSize: 16, color: Colors.accent, flexShrink: 1 },
   eyebrow: {
     backgroundColor: Colors.accent + '33',
     borderRadius: Radii.pill,
@@ -620,13 +699,13 @@ const styles = StyleSheet.create({
   },
   eyebrowText: {
     fontFamily: Fonts.extraBold,
-    fontSize: 14,
-    color: Colors.accentDeep,
+    fontSize: 18,
+    color: Colors.accent,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
   startBtn: {
-    backgroundColor: Colors.accentDeep,
+    backgroundColor: Colors.accent,
     paddingHorizontal: 36,
     paddingVertical: 20,
     borderRadius: Radii.pill,
@@ -636,27 +715,29 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 12 },
     elevation: 8,
   },
-  startBtnText: { fontFamily: Fonts.extraBold, fontSize: 18, color: '#fff', letterSpacing: 0.4 },
+  startBtnText: { fontFamily: Fonts.extraBold, fontSize: 22, color: '#2B2420', letterSpacing: 0.4 },
   missionArea: {
     flex: 1,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.xxl,
-    paddingVertical: Spacing.xl,
+    paddingVertical: Spacing.md,
   },
-  missionBlock: { width: '100%', alignItems: 'center', gap: 22 },
+  missionBlock: { width: '100%', alignItems: 'center', gap: 30 },
   centerWrap: { width: '100%', alignItems: 'center', gap: 18 },
-  counter: { fontFamily: Fonts.extraBold, fontSize: 76, color: Colors.accentDeep, lineHeight: 80 },
-  counterTarget: { fontFamily: Fonts.bold, fontSize: 22, color: Colors.inkFaint },
+  // lineHeight must stay >= fontSize here: anything smaller shrinks the line
+  // box below the glyphs, and the digits bleed up over the mission label.
+  counter: { fontFamily: Fonts.extraBold, fontSize: 87.5, color: Colors.accent, lineHeight: 98 },
+  counterTarget: { fontFamily: Fonts.bold, fontSize: 29, color: TEXT_SOFT },
   progressTrack: {
     width: '100%',
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#F1E7D3',
+    backgroundColor: SURFACE,
     overflow: 'hidden',
   },
-  progressFill: { height: '100%', backgroundColor: Colors.accentDeep, borderRadius: 8 },
+  progressFill: { height: '100%', backgroundColor: Colors.accent, borderRadius: 8 },
   tapTarget: { width: 150, height: 150, alignItems: 'center', justifyContent: 'center' },
   ring: { position: 'absolute', borderRadius: 999, borderWidth: 3, borderColor: Colors.accent },
   ringOuter: { width: 150, height: 150, opacity: 0.25 },
@@ -675,58 +756,77 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   tapDot: { width: 25, height: 25, borderRadius: 13, backgroundColor: '#fff' },
-  hint: { fontFamily: Fonts.extraBold, fontSize: 20, color: Colors.ink, textAlign: 'center', lineHeight: 26 },
+  hint: { fontFamily: Fonts.extraBold, fontSize: 25, color: TEXT, textAlign: 'center', lineHeight: 30 },
   mathWrap: { width: '100%', alignItems: 'center', gap: 18 },
-  equation: { fontFamily: Fonts.extraBold, fontSize: 56, color: Colors.ink },
+  equation: { fontFamily: Fonts.extraBold, fontSize: 64.5, color: TEXT },
   inputDisplay: {
     width: '100%',
-    backgroundColor: '#F8EFDC',
+    backgroundColor: SURFACE,
     borderWidth: 2,
-    borderColor: '#F1E1BE',
+    borderColor: SURFACE_BORDER,
     borderRadius: Radii.lg,
     paddingVertical: 16,
     alignItems: 'center',
   },
-  inputDisplayWrong: { backgroundColor: '#FBDADA', borderColor: '#F0B8B8' },
-  inputText: { fontFamily: Fonts.extraBold, fontSize: 32, color: Colors.ink, letterSpacing: 1 },
-  inputPlaceholder: { fontFamily: Fonts.extraBold, fontSize: 24, color: '#C9B98F', letterSpacing: 1 },
+  inputDisplayWrong: { backgroundColor: 'rgba(193,56,56,0.28)', borderColor: '#C13838' },
+  inputText: { fontFamily: Fonts.extraBold, fontSize: 37, color: TEXT, letterSpacing: 1 },
+  inputPlaceholder: { fontFamily: Fonts.extraBold, fontSize: 27.5, color: TEXT_SOFT, letterSpacing: 1 },
   keypad: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' },
   key: {
     width: '31%',
     height: 58,
     borderRadius: Radii.sm,
-    backgroundColor: '#F8EFDC',
+    backgroundColor: SURFACE,
     alignItems: 'center',
     justifyContent: 'center',
   },
   keyGhost: { backgroundColor: 'transparent' },
-  keyText: { fontFamily: Fonts.extraBold, fontSize: 26, color: Colors.ink },
+  keyText: { fontFamily: Fonts.extraBold, fontSize: 33, color: TEXT },
   comingSoonText: {
     fontFamily: Fonts.semiBold,
-    fontSize: 14,
-    color: Colors.ink,
+    fontSize: 19,
+    color: TEXT,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 24,
     paddingHorizontal: 8,
   },
   fallbackDismiss: {
     marginTop: 8,
-    backgroundColor: Colors.ink,
+    backgroundColor: Colors.accent,
     paddingHorizontal: 22,
     paddingVertical: 14,
     borderRadius: Radii.lg,
   },
-  fallbackDismissText: { fontFamily: Fonts.extraBold, fontSize: 14, color: '#fff' },
+  fallbackDismissText: { fontFamily: Fonts.extraBold, fontSize: 19, color: '#2B2420' },
   bars: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 10, height: 100 },
   bar: { width: 15, borderRadius: 999, backgroundColor: Colors.accent },
-  barDim: { backgroundColor: '#F1E7D3' },
+  barDim: { backgroundColor: SURFACE },
+  footer: {
+    width: '100%',
+    paddingHorizontal: Spacing.xxl,
+    paddingBottom: Spacing.md,
+    gap: 14,
+  },
   caption: {
     fontFamily: Fonts.bold,
-    fontSize: 12,
-    color: Colors.ink,
-    opacity: 0.85,
+    fontSize: 17,
+    color: TEXT_SOFT,
     textAlign: 'center',
-    paddingHorizontal: 40,
-    paddingBottom: 20,
+    lineHeight: 22,
   },
+  previewActions: { flexDirection: 'row', gap: 12 },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: Radii.pill,
+  },
+  // Uneven flex on purpose: "Pick this mission" is a much longer label than
+  // "Close", so an even split would squeeze it onto two lines.
+  closeAction: { flex: 1, backgroundColor: SURFACE, borderWidth: 1.5, borderColor: SURFACE_BORDER },
+  closeActionText: { fontFamily: Fonts.extraBold, fontSize: 18, color: TEXT },
+  pickAction: { flex: 2, backgroundColor: Colors.accent },
+  pickActionText: { fontFamily: Fonts.extraBold, fontSize: 18, color: '#2B2420' },
 });

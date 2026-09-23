@@ -400,6 +400,12 @@ What changed:
 
 ### Major pivot #3: Hybrid Alarm — chained post-deadline tasks, the new headline differentiator
 
+> **Removed** (this and the two sections below it) in the version that follows this one —
+> the whole "chained follow-up task attached to an alarm" concept was pulled out entirely.
+> It's being replaced by a standalone **Reminders** module (a one-shot calendar reminder,
+> not attached to any alarm) planned for v2.0.0 — see the plan file for that work. Kept here,
+> not deleted, as the historical record of why this existed and how it evolved.
+
 Wake Window turned out to be parity-with-competitors rather than a strong hook on its own,
 so the app's headline differentiator pivoted again to **Hybrid Alarm**: after an alarm's
 hard deadline, the user can attach a chain of follow-up tasks — each with a custom label
@@ -523,6 +529,14 @@ evaluate anything at the 90s mark):
 
 ### Task completion tracking + History rebuilt as a calendar
 
+> **Partially removed**: the task-completion-tracking half of this section (`TaskEvent`,
+> `task_events`, `task-check.tsx`, the notification-tap flow below) was removed along with
+> the rest of Hybrid Alarm/Task — see the note above. **History's calendar view itself is
+> still current** and not affected: `history.tsx`/`history-data.ts` were kept, just with
+> their per-task detail (the "Tasks · X/Y done" list) stripped out, since a full History
+> removal is deferred to v2.0.0 (Part 2 of the plan file) along with the rest of that
+> restructuring. `getDayDetail` now only returns `alarmsTriggered`/`missionsCompleted`.
+
 Two related asks: (1) tapping a task's notification should ask whether it actually got done,
 recording that response rather than just opening the app; (2) History's 7-day dot chart
 becomes a real calendar — tap any date to see whether the mission was finished that day, how
@@ -558,12 +572,12 @@ and its "Buzz says" rolling-average insight line are gone, superseded by this.
 
 A full local wipe, for testing and for users who just want a clean slate without deleting and
 reinstalling the app. `db.ts`'s `resetAllData()` deletes every row from every table this app
-owns (alarms, wake_events, custom_sounds, alarm_tasks, alarm_triggers, task_events,
-app_settings) and reinserts a fresh default settings row — the same shape a brand-new install
+owns (alarms, wake_events, custom_sounds, alarm_triggers, app_settings) and reinserts a fresh
+default settings row — the same shape a brand-new install
 gets, `hasOnboarded: false` included, so the app runs onboarding again next launch. Deleting DB
 rows alone doesn't reach into AlarmKit's or iOS's own scheduled-notification stores, so
 `settings.tsx`'s `handleResetData` cancels those *first*: loops `cancelAlarmNotification` over
-every existing alarm (covers each one's backup notification and Hybrid Alarm task chain), then
+every existing alarm (covers each one's backup notification), then
 a new `alarmkit.ts` export `clearAllAlarmKitAlarms()` (wraps the native module's
 `clearAllAlarms()` — a genuine bulk API, not a loop) for anything AlarmKit-side, then
 `Notifications.cancelAllScheduledNotificationsAsync()` as a final sweep for anything else

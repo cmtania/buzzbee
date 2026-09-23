@@ -2,11 +2,11 @@ import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { BellIcon, ClockIcon } from '@/components/icons';
 import { OnboardingScreen } from '@/components/onboarding-screen';
 import { Fonts } from '@/constants/theme';
 import { ensureAlarmKitAuthorization } from '@/lib/alarmkit';
 import { ensureNotificationPermission } from '@/lib/scheduling';
+import { Bell, Clock } from 'lucide-react-native';
 
 const INK = '#2B2420';
 const INK_FAINT = '#9C8C7A';
@@ -29,7 +29,7 @@ export default function PermissionsScreen() {
       onContinue={() => router.push('/onboarding/features')}>
       <View style={styles.row}>
         <View style={styles.iconWrap}>
-          <BellIcon size={21} color={ACCENT_DEEP} />
+          <Bell size={24} color={ACCENT_DEEP} />
         </View>
         <View style={styles.main}>
           <Text style={styles.title}>Notifications</Text>
@@ -39,7 +39,7 @@ export default function PermissionsScreen() {
 
       <View style={[styles.row, styles.rowLast]}>
         <View style={styles.iconWrap}>
-          <ClockIcon size={21} color={ACCENT_DEEP} />
+          <Clock size={24} color={ACCENT_DEEP} />
         </View>
         <View style={styles.main}>
           <Text style={styles.title}>Alarms</Text>
@@ -73,6 +73,6 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   main: { flex: 1, minWidth: 0 },
-  title: { fontFamily: Fonts.extraBold, fontSize: 15, color: INK },
-  desc: { fontFamily: Fonts.semiBold, fontSize: 12.5, color: INK_FAINT, marginTop: 3, lineHeight: 18 },
+  title: { fontFamily: Fonts.extraBold, fontSize: 17.5, color: INK },
+  desc: { fontFamily: Fonts.semiBold, fontSize: 14.5, color: INK_FAINT, marginTop: 3, lineHeight: 18 },
 });

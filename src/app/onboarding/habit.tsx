@@ -69,5 +69,5 @@ const styles = StyleSheet.create({
   },
   dotSelected: { borderColor: ACCENT, backgroundColor: ACCENT },
   dotInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
-  label: { fontFamily: Fonts.bold, fontSize: 15, color: INK, flex: 1 },
+  label: { fontFamily: Fonts.bold, fontSize: 17.5, color: INK, flex: 1 },
 });

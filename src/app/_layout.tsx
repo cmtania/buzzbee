@@ -8,12 +8,14 @@ import {
   useFonts,
 } from '@expo-google-fonts/manrope';
 import * as Notifications from 'expo-notifications';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, usePathname, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { CreateAlarmButton } from '@/components/create-alarm-button';
 import { Colors } from '@/constants/theme';
 import { useBackgroundKeepAlive } from '@/hooks/use-background-keep-alive';
 import { useEveningCalendarCheck } from '@/hooks/use-evening-calendar-check';
@@ -25,7 +27,8 @@ import {
   configureAlarmKit,
   CONFIRMATION_ALARM_DELAY_SEC,
 } from '@/lib/alarmkit';
-import { getAlarm, getSettings } from '@/lib/db';
+import { isoMatchesTime } from '@/lib/alarm-utils';
+import { getAlarm, getSettings, getWakeEventToday } from '@/lib/db';
 import { dedupKey, markTriggeredToday } from '@/lib/ring-dedup';
 import { rescheduleWindDownNotification } from '@/lib/wind-down-scheduling';
 
@@ -62,12 +65,12 @@ export default function RootLayout() {
   // just this synchronous check + one DB read, however long Home would have
   // taken to render is no longer part of the window at all.
   useEffect(() => {
-    const alarmId = checkAlarmKitLaunch();
-    if (!alarmId) {
-      setAlarmLaunchChecked(true);
-      return;
-    }
     (async () => {
+      const alarmId = checkAlarmKitLaunch();
+      if (!alarmId) {
+        setAlarmLaunchChecked(true);
+        return;
+      }
       const alarm = await getAlarm(alarmId);
       if (alarm) {
         // Mark this alarm as already-rung *before* navigating —
@@ -98,11 +101,13 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <AlarmDraftProvider>
-        <AppShell initialHasOnboarded={hasOnboarded} pendingAlarmLaunch={pendingAlarmLaunch} />
-      </AlarmDraftProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AlarmDraftProvider>
+          <AppShell initialHasOnboarded={hasOnboarded} pendingAlarmLaunch={pendingAlarmLaunch} />
+        </AlarmDraftProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -114,6 +119,7 @@ function AppShell({
   pendingAlarmLaunch: PendingAlarmLaunch | null;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { setDraft } = useAlarmDraft();
 
   useWakeWindowMonitor();
@@ -142,8 +148,6 @@ function AppShell({
         | {
             type?: string;
             alarmId?: string;
-            taskId?: string;
-            label?: string;
             triggeredBy?: string;
             suggestedStart?: string;
             suggestedEnd?: string;
@@ -151,26 +155,32 @@ function AppShell({
         | undefined;
 
       if (data?.type === 'alarm-deadline' && data.alarmId) {
-        router.push({
-          pathname: '/ringing',
-          params: {
-            alarmId: data.alarmId,
-            triggeredBy: data.triggeredBy === 'window-start' ? 'window-start' : 'hard-deadline',
-          },
-        });
-        return;
-      }
-
-      // A Hybrid Alarm follow-up task's notification (see hybrid-tasks.ts) —
-      // ask whether it actually got done. Ignoring the notification instead
-      // of tapping it never reaches here at all, so no TaskEvent ever gets
-      // written for it — task-check.tsx's own doc comment covers why that's
-      // fine (History reads a missing row as "not completed").
-      if (data?.type === 'task-reminder' && data.alarmId && data.taskId) {
-        router.push({
-          pathname: '/task-check',
-          params: { alarmId: data.alarmId, taskId: data.taskId, label: data.label ?? '' },
-        });
+        // This backup notification is scheduled for the exact same moment as
+        // AlarmKit's own native alert (see scheduling.ts's
+        // scheduleAlarmNotification) as a defense-in-depth fallback in case
+        // AlarmKit ever fails — but nothing cancels an already-*delivered*
+        // notification when the alarm is genuinely dismissed through the
+        // AlarmKit path instead (cancelAlarmNotification only cancels a still
+        // *scheduled* one). That leaves this one sitting in Notification
+        // Center even after a real dismissal, tappable hours later and,
+        // without this check, unconditionally re-opening the mission for an
+        // alarm already handled today. Same WakeEvent guard as
+        // useWakeWindowMonitor's tick — an alarm that rang and was genuinely
+        // *ignored* has no WakeEvent, so tapping this notification still
+        // works normally for that case.
+        const alarm = await getAlarm(data.alarmId);
+        const todayEvent = alarm ? await getWakeEventToday(alarm.id) : null;
+        const alreadyHandled =
+          !!alarm && !!todayEvent && isoMatchesTime(todayEvent.scheduledDeadline, alarm.windowEnd);
+        if (!alreadyHandled) {
+          router.push({
+            pathname: '/ringing',
+            params: {
+              alarmId: data.alarmId,
+              triggeredBy: data.triggeredBy === 'window-start' ? 'window-start' : 'hard-deadline',
+            },
+          });
+        }
         return;
       }
 
@@ -213,25 +223,37 @@ function AppShell({
     return () => sub.remove();
   }, [router, setDraft]);
 
+  // NativeTabs (see (tabs)/_layout.tsx) sizes each tab screen's own content
+  // frame to stop above the native tab bar — an absolutely-positioned button
+  // rendered *inside* one of those screens can never reach down into the tab
+  // bar's own row, no matter its `bottom` offset, since it's boxed into the
+  // wrong coordinate space. Rendered here instead, as a sibling of the whole
+  // Stack, it's positioned against the true screen bounds. Only shown on the
+  // three tab routes — everywhere else (onboarding, modals, ringing) has no
+  // "create" affordance to float here.
+  const showCreateButton = pathname === '/' || pathname === '/history' || pathname === '/settings';
+
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="onboarding" />
-      <Stack.Screen name="add-edit" options={{ presentation: 'transparentModal' }} />
-      <Stack.Screen name="choose-mission" options={{ presentation: 'transparentModal' }} />
-      <Stack.Screen name="choose-sound" options={{ presentation: 'transparentModal' }} />
-      <Stack.Screen name="record-sound" options={{ presentation: 'transparentModal' }} />
-      <Stack.Screen name="wind-down-settings" options={{ presentation: 'transparentModal' }} />
-      <Stack.Screen name="notifications-settings" options={{ presentation: 'transparentModal' }} />
-      <Stack.Screen name="sound-haptics-settings" options={{ presentation: 'transparentModal' }} />
-      <Stack.Screen name="about" options={{ presentation: 'transparentModal' }} />
-      <Stack.Screen name="task-check" options={{ presentation: 'transparentModal' }} />
-      <Stack.Screen name="wind-down" options={{ presentation: 'fullScreenModal' }} />
-      <Stack.Screen name="ringing" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
-      <Stack.Screen
-        name="mission-complete"
-        options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
-      />
-    </Stack>
+    <View style={{ flex: 1 }}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="add-edit" options={{ presentation: 'transparentModal' }} />
+        <Stack.Screen name="choose-mission" options={{ presentation: 'transparentModal' }} />
+        <Stack.Screen name="choose-sound" options={{ presentation: 'transparentModal' }} />
+        <Stack.Screen name="record-sound" options={{ presentation: 'transparentModal' }} />
+        <Stack.Screen name="wind-down-settings" options={{ presentation: 'transparentModal' }} />
+        <Stack.Screen name="notifications-settings" options={{ presentation: 'transparentModal' }} />
+        <Stack.Screen name="sound-haptics-settings" options={{ presentation: 'transparentModal' }} />
+        <Stack.Screen name="about" options={{ presentation: 'transparentModal' }} />
+        <Stack.Screen name="wind-down" options={{ presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="ringing" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
+        <Stack.Screen
+          name="mission-complete"
+          options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
+        />
+      </Stack>
+      {showCreateButton && <CreateAlarmButton />}
+    </View>
   );
 }

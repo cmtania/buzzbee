@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     borderColor: TRACK_OFF,
   },
   dayActive: { backgroundColor: ACCENT, borderColor: ACCENT },
-  dayText: { fontFamily: Fonts.bold, fontSize: 13, color: INK_FAINT },
+  dayText: { fontFamily: Fonts.bold, fontSize: 15, color: INK_FAINT },
   dayTextActive: { color: INK },
   presets: { flexDirection: 'row', gap: 10 },
   preset: {
@@ -106,6 +106,6 @@ const styles = StyleSheet.create({
     borderColor: TRACK_OFF,
   },
   presetActive: { borderColor: ACCENT, backgroundColor: ACCENT + '26' },
-  presetText: { fontFamily: Fonts.bold, fontSize: 13, color: INK_FAINT },
+  presetText: { fontFamily: Fonts.bold, fontSize: 15, color: INK_FAINT },
   presetTextActive: { color: INK },
 });

@@ -1,17 +1,18 @@
 import { AudioSource, setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CheckIcon, MicIcon, TrashIcon } from '@/components/icons';
+import { GlassCard } from '@/components/glass-card';
 import { SwipeToDismissSheet } from '@/components/swipe-to-dismiss-sheet';
-import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
 import { useAlarmDraft } from '@/lib/alarm-draft-context';
 import { getCustomSounds, removeCustomSound } from '@/lib/custom-sounds';
 import { safeAudioCall, SOUND_FILES, SOUND_NAMES } from '@/lib/sounds';
 import { CustomSound } from '@/lib/types';
+import { Check, Mic, Trash } from 'lucide-react-native';
 
 export default function ChooseSoundScreen() {
   const router = useRouter();
@@ -50,18 +51,33 @@ export default function ChooseSoundScreen() {
 
   return (
     <Pressable style={styles.backdrop} onPress={() => router.back()}>
-      <SwipeToDismissSheet onDismiss={() => router.back()} style={styles.sheet}>
+      <SwipeToDismissSheet
+        onDismiss={() => router.back()}
+        style={styles.sheet}
+        // Drag-to-dismiss is confined to this header so the list below stays a
+        // plain ScrollView — a downward drag in the body scrolls, and never
+        // gets misread as a dismiss.
+        header={
+          <>
+            <View style={styles.handle} />
+            <Text style={styles.title}>Choose a Sound</Text>
+          </>
+        }>
         <SafeAreaView edges={['bottom']} style={styles.safeArea}>
-          <View style={styles.handle} />
-          <Text style={styles.title}>Choose a Sound</Text>
+          {/* Pinned above the ScrollView rather than inside it: adding a sound
+              is the one action here that shouldn't scroll out of reach. */}
+          <View style={styles.recordWrap}>
+            <Pressable onPress={() => router.push('/record-sound')}>
+              <GlassCard style={styles.recordRow}>
+                <View style={styles.recordIconWrap}>
+                  <Mic size={18.5} color={Colors.accentDeep} />
+                </View>
+                <Text style={styles.recordLabel}>Record a New Sound</Text>
+              </GlassCard>
+            </Pressable>
+          </View>
 
-          <Pressable style={styles.recordRow} onPress={() => router.push('/record-sound')}>
-            <View style={styles.recordIconWrap}>
-              <MicIcon size={16} color={Colors.accentDeep} />
-            </View>
-            <Text style={styles.recordLabel}>Record a New Sound</Text>
-          </Pressable>
-
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
           {customSounds.length > 0 && (
             <>
               <Text style={styles.sectionLabel}>Your Sounds</Text>
@@ -105,6 +121,7 @@ export default function ChooseSoundScreen() {
               />
             ))}
           </View>
+          </ScrollView>
         </SafeAreaView>
       </SwipeToDismissSheet>
     </Pressable>
@@ -148,25 +165,27 @@ function SoundRow({
   useEffect(() => () => safeAudioCall(() => player.pause()), [player]);
 
   return (
-    <Pressable style={[styles.tile, selected && styles.tileSelected]} onPress={onSelect}>
-      <View style={styles.tileTop}>
-        <Pressable style={styles.playBtn} onPress={onTogglePreview} hitSlop={8}>
-          <Text style={styles.playIcon}>{previewing ? '■' : '▶'}</Text>
-        </Pressable>
-        {onDelete && (
-          <Pressable style={styles.deleteBtn} onPress={onDelete} hitSlop={8}>
-            <TrashIcon size={14} color={Colors.danger} />
+    <Pressable style={styles.tileWrap} onPress={onSelect}>
+      <GlassCard style={[styles.tile, selected && styles.tileSelected]}>
+        <View style={styles.tileTop}>
+          <Pressable style={styles.playBtn} onPress={onTogglePreview} hitSlop={8}>
+            <Text style={styles.playIcon}>{previewing ? '■' : '▶'}</Text>
           </Pressable>
-        )}
-      </View>
-      <Text style={styles.tileLabel} numberOfLines={2}>
-        {label}
-      </Text>
-      {selected && (
-        <View style={styles.check}>
-          <CheckIcon size={11} />
+          {onDelete && (
+            <Pressable style={styles.deleteBtn} onPress={onDelete} hitSlop={8}>
+              <Trash size={16} color={Colors.danger} />
+            </Pressable>
+          )}
         </View>
-      )}
+        <Text style={styles.tileLabel} numberOfLines={2}>
+          {label}
+        </Text>
+        {selected && (
+          <View style={styles.check}>
+            <Check size={12.5} color={Colors.white} />
+          </View>
+        )}
+      </GlassCard>
     </Pressable>
   );
 }
@@ -178,8 +197,16 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: Radii.xl,
     borderTopRightRadius: Radii.xl,
     maxHeight: '75%',
+    overflow: 'hidden',
   },
-  safeArea: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing.lg },
+  // flexShrink: 1 on both of these is what makes the sheet's maxHeight cap
+  // actually bite: RN defaults flexShrink to 0, so without it a list taller
+  // than the cap overflowed past the sheet's box instead of scrolling — the
+  // bottom sounds were simply unreachable.
+  safeArea: { flexShrink: 1 },
+  scroll: { flexShrink: 1 },
+  body: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing.lg },
+  recordWrap: { paddingHorizontal: Spacing.xl },
   handle: {
     width: 40,
     height: 5,
@@ -191,7 +218,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: Fonts.extraBold,
-    fontSize: 19,
+    fontSize: 22,
     color: Colors.ink,
     textAlign: 'center',
     marginBottom: 16,
@@ -200,7 +227,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: Colors.accent + '1a',
     borderRadius: Radii.md,
     padding: 14,
     marginBottom: 16,
@@ -216,10 +242,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  recordLabel: { fontFamily: Fonts.bold, fontSize: 15, color: Colors.accentDeep },
+  recordLabel: { fontFamily: Fonts.bold, fontSize: 17.5, color: Colors.accentDeep },
   sectionLabel: {
     fontFamily: Fonts.bold,
-    fontSize: 12.5,
+    fontSize: 14.5,
     color: Colors.inkFaint,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -227,7 +253,7 @@ const styles = StyleSheet.create({
   },
   customSoundNote: {
     fontFamily: Fonts.semiBold,
-    fontSize: 12.5,
+    fontSize: 14.5,
     color: Colors.inkFaint,
     lineHeight: 18,
     marginBottom: 16,
@@ -239,16 +265,14 @@ const styles = StyleSheet.create({
     rowGap: 10,
     marginBottom: 10,
   },
+  tileWrap: { width: '48%' },
   tile: {
-    width: '48%',
-    backgroundColor: Colors.cardBg,
     borderRadius: Radii.md,
     padding: 14,
     borderWidth: 2,
     borderColor: Colors.trackOff,
-    ...Shadows.card,
   },
-  tileSelected: { borderColor: Colors.accent, backgroundColor: Colors.accent + '1a' },
+  tileSelected: { borderColor: Colors.accent },
   tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   playBtn: {
     width: 34,
@@ -258,8 +282,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  playIcon: { fontSize: 13, color: Colors.ink },
-  tileLabel: { fontFamily: Fonts.bold, fontSize: 14, color: Colors.ink, marginTop: 12 },
+  playIcon: { fontSize: 15, color: Colors.ink },
+  tileLabel: { fontFamily: Fonts.bold, fontSize: 16, color: Colors.ink, marginTop: 12 },
   check: {
     position: 'absolute',
     bottom: 10,

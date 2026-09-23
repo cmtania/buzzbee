@@ -7,17 +7,14 @@ claim is **"the alarm still rings — at full volume, through Silent mode — ev
 the app has been fully force-quit."** That's the one thing a reviewer cannot verify
 just by reading a description, and it's exactly the kind of claim App Review is
 trained to be skeptical of for alarm apps, so show it happening, don't just say it.
-Segment 6 covers a second, subtler risk: Task After You're Awake's deliberately
-conditional firing (see its own section below) could read as broken rather than
-intentional if a reviewer stumbles into it without context.
 
 **How to record:** use iOS's built-in screen recorder (Control Center → Screen
 Recording), not an external camera. It captures the device's actual audio output
 directly, which is what proves the alarm is genuinely loud/audible — a camera mic
 recording a phone from across the room is much less convincing and can even sound
-quiet by accident. Keep the whole thing to 2–4 minutes where possible; Segment 6
-makes that tight, so trim the others rather than letting the whole recording sprawl
-— a reviewer will not watch a 15-minute video.
+quiet by accident. Keep the whole thing to 2–4 minutes where possible, trimming
+segments rather than letting the whole recording sprawl — a reviewer will not
+watch a 15-minute video.
 
 Set the device's date/time visible in the status bar clock for all segments —
 timestamps are your evidence that nothing happened until the alarm's actual time.
@@ -114,40 +111,12 @@ There's no UI path to a silent auto-apply variant (see `APP-REVIEW-GUIDE.md`), s
 this confirm-first notification appearing is the complete proof — no need to tap
 into it or show anything beyond the notification itself.
 
-## Segment 6: Task After You're Awake — only fires if the mission was actually completed
-
-This one earns its spot here for the opposite reason from the others: it's not
-proving a claim works, it's pre-empting a reviewer concluding the feature is
-*broken* when it behaves exactly as designed. A task's notification is
-provisionally cancelled the instant its alarm starts ringing, and only restored if
-the mission is genuinely completed — so a reviewer who lets an alarm ring out
-without dismissing it, then waits for the task's time, will correctly see nothing
-happen. Without this segment, that reads as a bug report waiting to happen.
-
-**Part A — mission completed, task fires:**
-1. Create an alarm with **Wake Window off**, deadline ~2 minutes out. On the same
-   Add/Edit screen, scroll to **Task After You're Awake** and tap **+ Add Task** to
-   add one task scheduled ~2 minutes after the deadline.
-2. Let the alarm ring and **complete the mission**.
-3. Wait for the task's time — a plain notification arrives (no full-screen alert,
-   no Silent-mode override — this is deliberately just a normal local notification,
-   not a second alarm). Tap it — a small **"Did you finish this?"** dialog opens.
-
-**Part B — mission NOT completed, task correctly stays silent:**
-1. Create a second alarm + task pair the same way.
-2. Let the alarm ring, but this time **do not** complete the mission (let it keep
-   ringing, or force-quit and don't reopen).
-3. Wait past the task's scheduled time on camera, with the status bar clock
-   visible — **no task notification arrives**. This silence is the point of the
-   segment; hold the shot long enough that it's unambiguous, not just a quick cut.
-
 ---
 
 ## What to write in the attached notes (paste alongside the recording)
 
 ```
-Attached: a screen recording proving BuzzBee's core reliability claim and its
-newest feature.
+Attached: a screen recording proving BuzzBee's core reliability claim.
 
 0:00–[x] — A fixed-time alarm (Wake Window off) is force-quit from the app
 switcher, then rings at the scheduled time at full volume despite the device
@@ -165,16 +134,10 @@ ever used to read a volume level.
 New Sound) entirely in Airplane Mode, to demonstrate the recording never has
 network access to be uploaded over — it's saved to local device storage only.
 
-[w]–[v] — Calendar Auto-Shift: a real event added for tomorrow that conflicts
+[w]–end — Calendar Auto-Shift: a real event added for tomorrow that conflicts
 with an alarm's hard deadline, checked after 6:00 PM local time (visible on the
 status bar clock), producing a "Shift your wake window?" notification with no
 interaction beyond opening the app.
-
-[v]–end — Task After You're Awake: a follow-up task's notification arrives
-normally once its alarm's mission is completed (tapping it opens a "Did you
-finish this?" prompt), then a second example shows the same task type
-deliberately NOT firing when the mission is left unfinished — this is intended
-behavior (tasks only remind you once you're confirmed awake), not a bug.
 ```
 
 Fill in the real timestamps once the recording is edited/trimmed, attach it as a

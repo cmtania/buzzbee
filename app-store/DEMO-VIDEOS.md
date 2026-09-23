@@ -1,6 +1,6 @@
 # BuzzBee — demo video plan
 
-Seven short recordings, each proving one feature actually works end-to-end on
+Six short recordings, each proving one feature actually works end-to-end on
 a real device. One brief sentence per video summarizes what it's demonstrating;
 the steps under it are the shot list.
 
@@ -67,21 +67,7 @@ be dismissed by completing the Clap mission after tapping the native alert.
 - Click the alarm kit notification
 - Finish the Clap mission
 
-## 6th video — Task After You're Awake only fires after a genuine dismiss
-
-Proves a follow-up task's reminder only arrives once the alarm's own mission
-is actually completed, and can be marked done.
-
-- Create a fixed alarm
-- Set Buzz mission
-- Add task
-- Quit App
-- Trigger alarm
-- Finish mission
-- Wait for the task reminder
-- Click Yes
-
-## 7th video — Reset Data returns the app to a fresh-install state
+## 6th video — Reset Data returns the app to a fresh-install state
 
 Proves Reset Data fully wipes every alarm and setting, with nothing left
 behind after quitting and reopening the app.

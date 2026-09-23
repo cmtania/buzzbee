@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: Fonts.extraBold,
-    fontSize: 13,
+    fontSize: 15,
     color: Colors.ink,
     textAlign: 'center',
     paddingHorizontal: 6,

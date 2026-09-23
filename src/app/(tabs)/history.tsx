@@ -4,9 +4,9 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { FloatingTabBar } from '@/components/floating-tab-bar';
-import { CheckIcon, ChevronRight, CloseIcon } from '@/components/icons';
-import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
+import { GlassCard } from '@/components/glass-card';
+import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
+import { ChevronRight } from 'lucide-react-native';
 import { DayDetail, DaySummary, getDayDetail, getMonthSummaries } from '@/lib/history-data';
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -105,18 +105,18 @@ export default function HistoryScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.body}>
-          <View style={styles.calendarCard}>
+          <GlassCard style={styles.calendarCard}>
             <View style={styles.monthNav}>
               <Pressable onPress={goPrevMonth} hitSlop={10} style={styles.navBtn}>
                 <View style={styles.flipX}>
-                  <ChevronRight size={16} color={Colors.ink} />
+                  <ChevronRight size={18.5} color={Colors.ink} />
                 </View>
               </Pressable>
               <Text style={styles.monthLabel}>
                 {MONTH_LABELS[viewedMonth]} {viewedYear}
               </Text>
               <Pressable onPress={goNextMonth} hitSlop={10} style={styles.navBtn}>
-                <ChevronRight size={16} color={Colors.ink} />
+                <ChevronRight size={18.5} color={Colors.ink} />
               </Pressable>
             </View>
 
@@ -171,9 +171,9 @@ export default function HistoryScreen() {
                 <Text style={styles.legendText}>Rang, not finished</Text>
               </View>
             </View>
-          </View>
+          </GlassCard>
 
-          <View style={styles.detailCard}>
+          <GlassCard style={styles.detailCard}>
             <Text style={styles.detailDate}>{selectedLabel}</Text>
             {!detail ? (
               <Text style={styles.detailEmpty}>Loading…</Text>
@@ -191,38 +191,11 @@ export default function HistoryScreen() {
                     {detail.missionsCompleted} / {detail.alarmsTriggered}
                   </Text>
                 </View>
-
-                {detail.tasks.length > 0 && (
-                  <View style={styles.taskSection}>
-                    <Text style={styles.taskSectionLabel}>
-                      Tasks · {detail.tasks.filter((t) => t.completed).length}/{detail.tasks.length} done
-                    </Text>
-                    {detail.tasks.map((t) => (
-                      <View key={t.taskId} style={styles.taskRow}>
-                        <View
-                          style={[
-                            styles.taskIconWrap,
-                            t.completed ? styles.taskIconDone : styles.taskIconMissed,
-                          ]}>
-                          {t.completed ? (
-                            <CheckIcon size={11} color={Colors.white} />
-                          ) : (
-                            <CloseIcon size={10} color={Colors.white} />
-                          )}
-                        </View>
-                        <Text style={styles.taskLabel} numberOfLines={1}>
-                          {t.label}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
               </>
             )}
-          </View>
+          </GlassCard>
         </ScrollView>
       </SafeAreaView>
-      <FloatingTabBar />
     </View>
   );
 }
@@ -231,14 +204,12 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.bg },
   safeArea: { flex: 1 },
   header: { paddingHorizontal: Spacing.xxl, paddingTop: Spacing.lg },
-  eyebrow: { fontFamily: Fonts.semiBold, fontSize: 13, color: Colors.inkFaint },
-  h1: { fontFamily: Fonts.extraBold, fontSize: 26, color: Colors.ink, marginTop: 2 },
+  eyebrow: { fontFamily: Fonts.semiBold, fontSize: 15, color: Colors.inkFaint },
+  h1: { fontFamily: Fonts.extraBold, fontSize: 30, color: Colors.ink, marginTop: 2 },
   body: { padding: Spacing.xxl, gap: Spacing.lg, paddingBottom: 140 },
   calendarCard: {
-    backgroundColor: Colors.cardBg,
     borderRadius: Radii.xl,
     padding: Spacing.lg,
-    ...Shadows.card,
   },
   monthNav: {
     flexDirection: 'row',
@@ -256,13 +227,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.trackOff,
   },
   flipX: { transform: [{ scaleX: -1 }] },
-  monthLabel: { fontFamily: Fonts.extraBold, fontSize: 15.5, color: Colors.ink },
+  monthLabel: { fontFamily: Fonts.extraBold, fontSize: 18, color: Colors.ink },
   weekdayRow: { flexDirection: 'row' },
   weekdayText: {
     flex: 1,
     textAlign: 'center',
     fontFamily: Fonts.bold,
-    fontSize: 11,
+    fontSize: 12.5,
     color: Colors.inkFaint,
     textTransform: 'uppercase',
   },
@@ -278,7 +249,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.accent + '33',
     borderRadius: Radii.sm,
   },
-  cellText: { fontFamily: Fonts.semiBold, fontSize: 13.5, color: Colors.ink },
+  cellText: { fontFamily: Fonts.semiBold, fontSize: 15.5, color: Colors.ink },
   cellTextToday: { color: Colors.accentDeep, fontFamily: Fonts.extraBold },
   cellTextSelected: { fontFamily: Fonts.extraBold },
   cellDot: { width: 5, height: 5, borderRadius: 2.5 },
@@ -292,46 +263,18 @@ const styles = StyleSheet.create({
   },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { fontFamily: Fonts.medium, fontSize: 11.5, color: Colors.inkSoft },
+  legendText: { fontFamily: Fonts.medium, fontSize: 13, color: Colors.inkSoft },
   detailCard: {
-    backgroundColor: Colors.cardBg,
     borderRadius: Radii.xl,
     padding: Spacing.xl,
-    ...Shadows.card,
   },
-  detailDate: { fontFamily: Fonts.extraBold, fontSize: 16, color: Colors.ink, marginBottom: 10 },
-  detailEmpty: { fontFamily: Fonts.semiBold, fontSize: 13.5, color: Colors.inkFaint },
+  detailDate: { fontFamily: Fonts.extraBold, fontSize: 18.5, color: Colors.ink, marginBottom: 10 },
+  detailEmpty: { fontFamily: Fonts.semiBold, fontSize: 15.5, color: Colors.inkFaint },
   statRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 6,
   },
-  statLabel: { fontFamily: Fonts.semiBold, fontSize: 13.5, color: Colors.inkSoft },
-  statValue: { fontFamily: Fonts.extraBold, fontSize: 13.5, color: Colors.ink },
-  taskSection: {
-    marginTop: Spacing.md,
-    paddingTop: Spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.trackOff,
-    gap: 8,
-  },
-  taskSectionLabel: {
-    fontFamily: Fonts.bold,
-    fontSize: 11.5,
-    color: Colors.inkFaint,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 2,
-  },
-  taskRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  taskIconWrap: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  taskIconDone: { backgroundColor: Colors.success },
-  taskIconMissed: { backgroundColor: Colors.danger },
-  taskLabel: { flex: 1, fontFamily: Fonts.semiBold, fontSize: 13.5, color: Colors.ink },
+  statLabel: { fontFamily: Fonts.semiBold, fontSize: 15.5, color: Colors.inkSoft },
+  statValue: { fontFamily: Fonts.extraBold, fontSize: 15.5, color: Colors.ink },
 });

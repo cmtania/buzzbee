@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { GlassCard } from '@/components/glass-card';
 import { SwipeToDismissSheet } from '@/components/swipe-to-dismiss-sheet';
 import { TimeStepper } from '@/components/time-stepper';
 import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
@@ -48,18 +49,21 @@ export default function WindDownSettingsScreen() {
 
           <View style={styles.body}>
             <View style={styles.timeCenterWrap}>
-              <TimeStepper
-                label="Bedtime"
-                value={settings.bedtime ?? '22:30'}
-                onChange={(v) => patch({ bedtime: v })}
-                large
-                onOpenChange={setPickerOpen}
-              />
+              <GlassCard style={styles.timeCard}>
+                <TimeStepper
+                  label="Bedtime"
+                  value={settings.bedtime ?? '22:30'}
+                  onChange={(v) => patch({ bedtime: v })}
+                  large
+                  bare
+                  onOpenChange={setPickerOpen}
+                />
+              </GlassCard>
             </View>
 
             <View>
               <Text style={styles.sectionLabel}>Remind me before bedtime</Text>
-              <View style={styles.offsetRow}>
+              <GlassCard style={styles.offsetRow}>
                 {OFFSET_OPTIONS.map((min) => {
                   const active = settings.windDownOffsetMin === min;
                   return (
@@ -73,15 +77,19 @@ export default function WindDownSettingsScreen() {
                     </Pressable>
                   );
                 })}
-              </View>
+              </GlassCard>
             </View>
 
             <View style={styles.footerRow}>
-              <Pressable style={styles.previewBtn} onPress={() => router.push('/wind-down')}>
-                <Text style={styles.previewText}>Preview Bedtime screen</Text>
+              <Pressable style={styles.footerBtnWrap} onPress={() => router.push('/wind-down')}>
+                <GlassCard style={styles.previewBtn} isInteractive>
+                  <Text style={styles.previewText}>Preview Bedtime screen</Text>
+                </GlassCard>
               </Pressable>
-              <Pressable style={styles.saveBtn} onPress={() => router.back()}>
-                <Text style={styles.saveText}>Save</Text>
+              <Pressable style={styles.footerBtnWrap} onPress={() => router.back()}>
+                <GlassCard style={styles.saveBtn} isInteractive>
+                  <Text style={styles.saveText}>Save</Text>
+                </GlassCard>
               </Pressable>
             </View>
           </View>
@@ -109,50 +117,48 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 8,
   },
-  title: { fontFamily: Fonts.extraBold, fontSize: 17, color: Colors.ink, textAlign: 'center' },
+  title: { fontFamily: Fonts.extraBold, fontSize: 19.5, color: Colors.ink, textAlign: 'center' },
   body: { paddingTop: Spacing.xl, gap: Spacing.xl, paddingBottom: Spacing.md },
   timeCenterWrap: { alignItems: 'center' },
+  timeCard: {
+    alignSelf: 'center',
+    alignItems: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 48,
+    borderRadius: Radii.lg,
+  },
   sectionLabel: {
     fontFamily: Fonts.bold,
-    fontSize: 12.5,
+    fontSize: 14.5,
     color: Colors.inkFaint,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 10,
   },
-  offsetRow: { flexDirection: 'row', gap: 10 },
+  offsetRow: { flexDirection: 'row', gap: 10, borderRadius: Radii.md, padding: 6 },
   offsetChip: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: Radii.md,
-    backgroundColor: Colors.cardBg,
+    borderRadius: Radii.sm,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: Colors.trackOff,
+    borderColor: 'transparent',
   },
   offsetChipActive: { borderColor: Colors.accent, backgroundColor: Colors.accent + '26' },
-  offsetText: { fontFamily: Fonts.bold, fontSize: 14, color: Colors.inkFaint },
+  offsetText: { fontFamily: Fonts.bold, fontSize: 16, color: Colors.inkFaint },
   offsetTextActive: { color: Colors.ink },
   footerRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  footerBtnWrap: { flex: 1 },
   previewBtn: {
-    flex: 1,
-    backgroundColor: Colors.ink,
     paddingVertical: 16,
     borderRadius: Radii.lg,
     alignItems: 'center',
   },
-  previewText: { fontFamily: Fonts.extraBold, fontSize: 15, color: '#fff' },
+  previewText: { fontFamily: Fonts.extraBold, fontSize: 17.5, color: Colors.ink },
   saveBtn: {
-    flex: 1,
-    backgroundColor: Colors.accent,
     paddingVertical: 16,
     borderRadius: Radii.lg,
     alignItems: 'center',
-    shadowColor: Colors.accent,
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
   },
-  saveText: { fontFamily: Fonts.extraBold, fontSize: 15, color: '#2B2420' },
+  saveText: { fontFamily: Fonts.extraBold, fontSize: 17.5, color: Colors.accentDeep },
 });

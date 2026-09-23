@@ -4,13 +4,11 @@ import { genId } from './id';
 import { setSettingsCache } from './settings-cache';
 import {
   Alarm,
-  AlarmTask,
   AlarmTriggerEvent,
   AppSettings,
   CustomSound,
   DEFAULT_SETTINGS,
   DismissMethod,
-  TaskEvent,
   WakeEvent,
 } from './types';
 
@@ -42,6 +40,7 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
         PRAGMA journal_mode = WAL;
         CREATE TABLE IF NOT EXISTS alarms (
           id TEXT PRIMARY KEY NOT NULL,
+          label TEXT NOT NULL DEFAULT '',
           windowStart TEXT NOT NULL,
           windowEnd TEXT NOT NULL,
           repeatDays TEXT NOT NULL,
@@ -69,31 +68,12 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
           filePath TEXT NOT NULL,
           createdAt TEXT NOT NULL
         );
-        CREATE TABLE IF NOT EXISTS alarm_tasks (
-          id TEXT PRIMARY KEY NOT NULL,
-          alarmId TEXT NOT NULL,
-          label TEXT NOT NULL,
-          time TEXT NOT NULL,
-          sortOrder INTEGER NOT NULL,
-          enabled INTEGER NOT NULL DEFAULT 1,
-          notificationId TEXT
-        );
         CREATE TABLE IF NOT EXISTS alarm_triggers (
           id TEXT PRIMARY KEY NOT NULL,
           alarmId TEXT NOT NULL,
           date TEXT NOT NULL,
           triggeredAt TEXT NOT NULL,
           UNIQUE(alarmId, date)
-        );
-        CREATE TABLE IF NOT EXISTS task_events (
-          id TEXT PRIMARY KEY NOT NULL,
-          taskId TEXT NOT NULL,
-          alarmId TEXT NOT NULL,
-          date TEXT NOT NULL,
-          label TEXT NOT NULL,
-          completed INTEGER NOT NULL,
-          respondedAt TEXT NOT NULL,
-          UNIQUE(taskId, date)
         );
         CREATE TABLE IF NOT EXISTS app_settings (
           id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -125,6 +105,9 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
         .catch(() => {});
       await db.execAsync('ALTER TABLE alarms ADD COLUMN alarmKitId TEXT').catch(() => {});
       await db.execAsync('ALTER TABLE alarms ADD COLUMN confirmAlarmKitId TEXT').catch(() => {});
+      await db
+        .execAsync("ALTER TABLE alarms ADD COLUMN label TEXT NOT NULL DEFAULT ''")
+        .catch(() => {});
       const settingsRow = await db.getFirstAsync<{ id: number }>(
         'SELECT id FROM app_settings WHERE id = 1'
       );
@@ -139,6 +122,10 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
 
 type AlarmRow = {
   id: string;
+  // Nullable in practice despite the NOT NULL DEFAULT: a row that existed
+  // before the ADD COLUMN migration reads back as null on some SQLite
+  // versions, so rowToAlarm coalesces rather than trusting the default.
+  label: string | null;
   windowStart: string;
   windowEnd: string;
   repeatDays: string;
@@ -153,6 +140,7 @@ type AlarmRow = {
 function rowToAlarm(row: AlarmRow): Alarm {
   return {
     id: row.id,
+    label: row.label ?? '',
     windowStart: row.windowStart,
     windowEnd: row.windowEnd,
     repeatDays: JSON.parse(row.repeatDays),
@@ -181,9 +169,10 @@ export async function getAlarm(id: string): Promise<Alarm | null> {
 export async function saveAlarm(alarm: Alarm): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    `INSERT INTO alarms (id, windowStart, windowEnd, repeatDays, smartWakeEnabled, dismissMethod, sound, enabled, vibrationEnabled)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO alarms (id, label, windowStart, windowEnd, repeatDays, smartWakeEnabled, dismissMethod, sound, enabled, vibrationEnabled)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
+       label = excluded.label,
        windowStart = excluded.windowStart,
        windowEnd = excluded.windowEnd,
        repeatDays = excluded.repeatDays,
@@ -194,6 +183,7 @@ export async function saveAlarm(alarm: Alarm): Promise<void> {
        vibrationEnabled = excluded.vibrationEnabled`,
     [
       alarm.id,
+      alarm.label,
       alarm.windowStart,
       alarm.windowEnd,
       JSON.stringify(alarm.repeatDays),
@@ -384,85 +374,6 @@ export async function deleteCustomSound(id: string): Promise<void> {
   await db.runAsync('DELETE FROM custom_sounds WHERE id = ?', [id]);
 }
 
-type AlarmTaskRow = {
-  id: string;
-  alarmId: string;
-  label: string;
-  time: string;
-  sortOrder: number;
-  enabled: number;
-};
-
-function rowToAlarmTask(row: AlarmTaskRow): AlarmTask {
-  return {
-    id: row.id,
-    alarmId: row.alarmId,
-    label: row.label,
-    time: row.time,
-    sortOrder: row.sortOrder,
-    enabled: !!row.enabled,
-  };
-}
-
-export async function getAlarmTasks(alarmId: string): Promise<AlarmTask[]> {
-  const db = await getDb();
-  const rows = await db.getAllAsync<AlarmTaskRow>(
-    'SELECT * FROM alarm_tasks WHERE alarmId = ? ORDER BY sortOrder ASC',
-    [alarmId]
-  );
-  return rows.map(rowToAlarmTask);
-}
-
-export async function getAlarmTask(id: string): Promise<AlarmTask | null> {
-  const db = await getDb();
-  const row = await db.getFirstAsync<AlarmTaskRow>('SELECT * FROM alarm_tasks WHERE id = ?', [id]);
-  return row ? rowToAlarmTask(row) : null;
-}
-
-/** Replaces this alarm's whole task list in one go — matches the "whole draft
- * persisted on Save" pattern already used for the parent Alarm itself. */
-export async function replaceAlarmTasks(alarmId: string, tasks: AlarmTask[]): Promise<void> {
-  const db = await getDb();
-  await db.runAsync('DELETE FROM alarm_tasks WHERE alarmId = ?', [alarmId]);
-  for (const task of tasks) {
-    await db.runAsync(
-      `INSERT INTO alarm_tasks (id, alarmId, label, time, sortOrder, enabled)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [task.id, alarmId, task.label, task.time, task.sortOrder, task.enabled ? 1 : 0]
-    );
-  }
-}
-
-export async function deleteAlarmTasks(alarmId: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync('DELETE FROM alarm_tasks WHERE alarmId = ?', [alarmId]);
-}
-
-export async function setAlarmTaskNotificationId(id: string, notificationId: string | null) {
-  const db = await getDb();
-  await db.runAsync('UPDATE alarm_tasks SET notificationId = ? WHERE id = ?', [notificationId, id]);
-}
-
-export async function getAlarmTaskNotificationId(id: string): Promise<string | null> {
-  const db = await getDb();
-  const row = await db.getFirstAsync<{ notificationId: string | null }>(
-    'SELECT notificationId FROM alarm_tasks WHERE id = ?',
-    [id]
-  );
-  return row?.notificationId ?? null;
-}
-
-/** One GROUP BY query for Home's optional "+N tasks" badge — avoids an N+1 query per alarm card. */
-export async function getAlarmTaskCounts(): Promise<Record<string, number>> {
-  const db = await getDb();
-  const rows = await db.getAllAsync<{ alarmId: string; count: number }>(
-    'SELECT alarmId, COUNT(*) as count FROM alarm_tasks GROUP BY alarmId'
-  );
-  const counts: Record<string, number> = {};
-  for (const row of rows) counts[row.alarmId] = row.count;
-  return counts;
-}
-
 /**
  * Records that this alarm actually rang today — at most one row per
  * alarmId+date (the UNIQUE constraint + INSERT OR IGNORE means a re-ring,
@@ -493,50 +404,6 @@ export async function getAlarmTriggersInRange(start: string, end: string): Promi
 }
 
 /**
- * Upserts (by taskId+date) the user's response to "did you finish this
- * task?" — see task-check.tsx, opened when a task's notification is tapped.
- * Re-tapping the same day's notification updates the same row rather than
- * creating a duplicate.
- */
-export async function addTaskEvent(event: TaskEvent): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    `INSERT INTO task_events (id, taskId, alarmId, date, label, completed, respondedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(taskId, date) DO UPDATE SET
-       completed = excluded.completed,
-       respondedAt = excluded.respondedAt`,
-    [
-      event.id,
-      event.taskId,
-      event.alarmId,
-      event.date,
-      event.label,
-      event.completed ? 1 : 0,
-      event.respondedAt,
-    ]
-  );
-}
-
-export async function getTaskEvent(taskId: string, date: string): Promise<TaskEvent | null> {
-  const db = await getDb();
-  const row = await db.getFirstAsync<Omit<TaskEvent, 'completed'> & { completed: number }>(
-    'SELECT * FROM task_events WHERE taskId = ? AND date = ?',
-    [taskId, date]
-  );
-  return row ? { ...row, completed: !!row.completed } : null;
-}
-
-export async function getTaskEventsForDate(date: string): Promise<TaskEvent[]> {
-  const db = await getDb();
-  const rows = await db.getAllAsync<Omit<TaskEvent, 'completed'> & { completed: number }>(
-    'SELECT * FROM task_events WHERE date = ?',
-    [date]
-  );
-  return rows.map((row) => ({ ...row, completed: !!row.completed }));
-}
-
-/**
  * Settings → Reset Data. Wipes every table this app owns and reinserts a
  * fresh default settings row (id=1) — the same row-shape the very first
  * launch creates in getDb() above, so the app reads as freshly installed
@@ -552,9 +419,7 @@ export async function resetAllData(): Promise<void> {
     DELETE FROM alarms;
     DELETE FROM wake_events;
     DELETE FROM custom_sounds;
-    DELETE FROM alarm_tasks;
     DELETE FROM alarm_triggers;
-    DELETE FROM task_events;
     DELETE FROM app_settings;
   `);
   await insertDefaultSettingsRow(db);

@@ -5,18 +5,10 @@ import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { FloatingTabBar } from '@/components/floating-tab-bar';
-import {
-  BellIcon,
-  BuzzIcon,
-  CalendarIcon,
-  ChevronRight,
-  InfoIcon,
-  MoonIcon,
-  TrashIcon,
-} from '@/components/icons';
+import { GlassCard } from '@/components/glass-card';
 import { Toggle } from '@/components/toggle';
-import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
+import { BedDouble, Bell, Calendar, ChevronRight, Info, Trash, Volume2 } from 'lucide-react-native';
 import { formatClock } from '@/lib/alarm-utils';
 import { clearAllAlarmKitAlarms } from '@/lib/alarmkit';
 import { getAlarms, getSettings, resetAllData, updateSettings } from '@/lib/db';
@@ -60,7 +52,7 @@ export default function SettingsScreen() {
     // wipes every alarm, all history, and settings with no way to undo it.
     Alert.prompt(
       'Reset All Data?',
-      'This deletes every alarm, all wake/task history, custom sounds, and settings — and cannot be undone.\n\nType CONFIRM to continue.',
+      'This deletes every alarm, all wake history, custom sounds, and settings — and cannot be undone.\n\nType CONFIRM to continue.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -91,9 +83,9 @@ export default function SettingsScreen() {
         <ScrollView contentContainerStyle={styles.body}>
           <View>
             <Text style={styles.sectionLabel}>Smart Features</Text>
-            <View style={styles.group}>
+            <GlassCard style={styles.group}>
               <Row
-                icon={<MoonIcon size={16} color={Colors.accentDeep} />}
+                icon={<BedDouble size={18.5} color={Colors.accentDeep} />}
                 title="Bedtime Reminder"
                 sub={
                   settings.bedtime
@@ -110,7 +102,7 @@ export default function SettingsScreen() {
                 }
               />
               <Row
-                icon={<CalendarIcon size={16} color={Colors.accentDeep} />}
+                icon={<Calendar size={18.5} color={Colors.accentDeep} />}
                 title="Calendar Auto-Shift"
                 sub="Checks 6:00–11:59 PM (not all day) and suggests moving your wake window if tomorrow's first event would conflict with it"
                 right={
@@ -120,51 +112,50 @@ export default function SettingsScreen() {
                   />
                 }
               />
-            </View>
+            </GlassCard>
           </View>
 
           <View>
             <Text style={styles.sectionLabel}>General</Text>
-            <View style={styles.group}>
+            <GlassCard style={styles.group}>
               <Row
-                icon={<BellIcon size={16} color={Colors.accentDeep} />}
+                icon={<Bell size={18.5} color={Colors.accentDeep} />}
                 title="Notifications"
                 divider={false}
                 onPress={() => router.push('/notifications-settings')}
-                right={<ChevronRight />}
+                right={<ChevronRight size={17.5} color={Colors.inkFaint} />}
               />
               <Row
-                icon={<BuzzIcon size={16} color={Colors.accentDeep} />}
+                icon={<Volume2 size={18.5} color={Colors.accentDeep} />}
                 title="Sound & Haptics"
                 onPress={() => router.push('/sound-haptics-settings')}
-                right={<ChevronRight />}
+                right={<ChevronRight size={17.5} color={Colors.inkFaint} />}
               />
               <Row
-                icon={<InfoIcon size={16} color={Colors.accentDeep} />}
+                icon={<Info size={18.5} color={Colors.accentDeep} />}
                 title="About BuzzBee"
                 onPress={() => router.push('/about')}
-                right={<ChevronRight />}
+                right={<ChevronRight size={17.5} color={Colors.inkFaint} />}
               />
-            </View>
+            </GlassCard>
           </View>
 
           <View>
             <Text style={styles.sectionLabel}>Danger Zone</Text>
-            <View style={styles.group}>
+            <GlassCard style={styles.group}>
               <Row
-                icon={<TrashIcon size={16} color={Colors.danger} />}
+                icon={<Trash size={18.5} color={Colors.danger} />}
                 title="Reset Data"
                 sub="Deletes every alarm, all history, and settings"
                 divider={false}
                 danger
                 onPress={handleResetData}
-                right={<ChevronRight />}
+                right={<ChevronRight size={17.5} color={Colors.inkFaint} />}
               />
-            </View>
+            </GlassCard>
           </View>
         </ScrollView>
       </SafeAreaView>
-      <FloatingTabBar />
     </View>
   );
 }
@@ -204,11 +195,11 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.bg },
   safeArea: { flex: 1 },
   header: { paddingHorizontal: Spacing.xxl, paddingTop: Spacing.lg },
-  h1: { fontFamily: Fonts.extraBold, fontSize: 26, color: Colors.ink },
+  h1: { fontFamily: Fonts.extraBold, fontSize: 30, color: Colors.ink },
   body: { padding: Spacing.xxl, gap: Spacing.xl, paddingBottom: 140 },
   sectionLabel: {
     fontFamily: Fonts.extraBold,
-    fontSize: 12,
+    fontSize: 14,
     color: Colors.inkFaint,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -216,10 +207,8 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
   },
   group: {
-    backgroundColor: Colors.cardBg,
     borderRadius: Radii.md,
     overflow: 'hidden',
-    ...Shadows.card,
   },
   row: {
     flexDirection: 'row',
@@ -242,7 +231,7 @@ const styles = StyleSheet.create({
   },
   rowIconDanger: { backgroundColor: Colors.danger + '26' },
   rowMain: { flex: 1, minWidth: 0 },
-  rowTitle: { fontFamily: Fonts.bold, fontSize: 14.5, color: Colors.ink },
+  rowTitle: { fontFamily: Fonts.bold, fontSize: 16.5, color: Colors.ink },
   rowTitleDanger: { color: Colors.danger },
-  rowSub: { fontFamily: Fonts.semiBold, fontSize: 12, color: Colors.inkFaint, marginTop: 1 },
+  rowSub: { fontFamily: Fonts.semiBold, fontSize: 14, color: Colors.inkFaint, marginTop: 1 },
 });

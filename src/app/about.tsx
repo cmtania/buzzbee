@@ -4,10 +4,10 @@ import { Linking, StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ChevronRight } from '@/components/icons';
 import { BeeLogo } from '@/components/bee-logo';
 import { SwipeToDismissSheet } from '@/components/swipe-to-dismiss-sheet';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
+import { ChevronRight } from 'lucide-react-native';
 
 const SUPPORT_URL = 'https://cmtania.github.io/buzzbee-docs/support.html';
 const PRIVACY_URL = 'https://cmtania.github.io/buzzbee-docs/privacy.html';
@@ -58,7 +58,7 @@ function LinkRow({ title, onPress, last }: { title: string; onPress: () => void;
   return (
     <Pressable style={[styles.linkRow, !last && styles.linkRowDivider]} onPress={onPress}>
       <Text style={styles.linkRowTitle}>{title}</Text>
-      <ChevronRight color={Colors.inkFaint} />
+      <ChevronRight size={17.5} color={Colors.inkFaint} />
     </Pressable>
   );
 }
@@ -82,16 +82,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   hero: { alignItems: 'center', paddingVertical: Spacing.xl, gap: 6 },
-  wordmark: { fontFamily: Fonts.brand, fontSize: 24, color: Colors.ink, marginTop: 8 },
+  wordmark: { fontFamily: Fonts.brand, fontSize: 27.5, color: Colors.ink, marginTop: 8 },
   tagline: {
     fontFamily: Fonts.semiBold,
-    fontSize: 13.5,
+    fontSize: 15.5,
     color: Colors.inkSoft,
     textAlign: 'center',
     lineHeight: 19,
     paddingHorizontal: Spacing.xl,
   },
-  version: { fontFamily: Fonts.bold, fontSize: 12, color: Colors.inkFaint, marginTop: 4 },
+  version: { fontFamily: Fonts.bold, fontSize: 14, color: Colors.inkFaint, marginTop: 4 },
   group: {
     backgroundColor: Colors.cardBg,
     borderRadius: Radii.lg,
@@ -99,8 +99,8 @@ const styles = StyleSheet.create({
     ...Shadows.card,
   },
   row: { padding: 14 },
-  rowTitle: { fontFamily: Fonts.bold, fontSize: 14, color: Colors.ink },
-  rowSub: { fontFamily: Fonts.semiBold, fontSize: 12, color: Colors.inkFaint, marginTop: 3, lineHeight: 16 },
+  rowTitle: { fontFamily: Fonts.bold, fontSize: 16, color: Colors.ink },
+  rowSub: { fontFamily: Fonts.semiBold, fontSize: 14, color: Colors.inkFaint, marginTop: 3, lineHeight: 16 },
   linkGroup: { marginTop: Spacing.md },
   linkRow: {
     flexDirection: 'row',
@@ -109,5 +109,5 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   linkRowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.trackOff },
-  linkRowTitle: { fontFamily: Fonts.bold, fontSize: 14, color: Colors.ink },
+  linkRowTitle: { fontFamily: Fonts.bold, fontSize: 16, color: Colors.ink },
 });

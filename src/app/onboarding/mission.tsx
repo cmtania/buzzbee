@@ -2,12 +2,12 @@ import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 
-import { CheckIcon } from '@/components/icons';
 import { OnboardingScreen } from '@/components/onboarding-screen';
 import { Fonts, Radii } from '@/constants/theme';
 import { useAlarmDraft } from '@/lib/alarm-draft-context';
 import { MISSION_ORDER, missionCountLabel, MissionIcon, missionLabel } from '@/lib/mission-meta';
 import { DismissMethod } from '@/lib/types';
+import { Check } from 'lucide-react-native';
 
 const INK = '#2B2420';
 const INK_SOFT = '#6B5D4F';
@@ -49,11 +49,11 @@ export default function MissionScreen() {
               onPress={() => select(method)}>
               {selected && (
                 <View style={styles.check}>
-                  <CheckIcon size={11} />
+                  <Check size={12.5} color="#fff" />
                 </View>
               )}
               <View style={[styles.iconWrap, selected && styles.iconWrapSelected]}>
-                <MissionIcon method={method} size={21} color="#E8790A" />
+                <MissionIcon method={method} size={24} color="#E8790A" />
               </View>
               <Text style={styles.cardTitle}>{missionLabel(method)}</Text>
               <Text style={styles.cardDesc}>{ONBOARDING_DESCRIPTIONS[method]}</Text>
@@ -101,10 +101,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconWrapSelected: { backgroundColor: '#fff' },
-  cardTitle: { fontFamily: Fonts.extraBold, fontSize: 13.5, color: INK, textAlign: 'center' },
+  cardTitle: { fontFamily: Fonts.extraBold, fontSize: 15.5, color: INK, textAlign: 'center' },
   cardDesc: {
     fontFamily: Fonts.semiBold,
-    fontSize: 10.5,
+    fontSize: 12,
     color: INK_SOFT,
     textAlign: 'center',
     lineHeight: 13,
@@ -117,5 +117,5 @@ const styles = StyleSheet.create({
     borderRadius: Radii.pill,
   },
   countPillSelected: { backgroundColor: '#fff' },
-  countPillText: { fontFamily: Fonts.extraBold, fontSize: 11, color: '#E8790A' },
+  countPillText: { fontFamily: Fonts.extraBold, fontSize: 12.5, color: '#E8790A' },
 });

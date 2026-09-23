@@ -112,13 +112,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: Fonts.extraBold,
-    fontSize: 17,
+    fontSize: 19.5,
     color: Colors.ink,
     textAlign: 'center',
     marginBottom: 4,
   },
   pickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  colon: { fontFamily: Fonts.extraBold, fontSize: 22, color: Colors.ink, marginHorizontal: 2 },
+  colon: { fontFamily: Fonts.extraBold, fontSize: 25.5, color: Colors.ink, marginHorizontal: 2 },
   doneBtn: {
     backgroundColor: Colors.accent,
     paddingVertical: 15,
@@ -127,5 +127,5 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 12,
   },
-  doneText: { fontFamily: Fonts.extraBold, fontSize: 15, color: '#2B2420' },
+  doneText: { fontFamily: Fonts.extraBold, fontSize: 17.5, color: '#2B2420' },
 });

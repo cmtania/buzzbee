@@ -46,8 +46,7 @@ export type WheelItem<T> = { label: string; value: T };
  * touching the wheel mid-scroll, routed through RCTViewComponentView's
  * Fabric hitTest). That's a memory-safety bug inside UIKit itself, not
  * something catchable from JS, so the only real fix is not using the native
- * component at all. See time-picker-modal.tsx and hybrid-task-modal.tsx,
- * the two places this replaces.
+ * component at all. See time-picker-modal.tsx, which this replaces.
  *
  * Loops continuously in both directions (scroll past the last minute and it
  * keeps going straight into the first, and vice versa) by rendering
@@ -98,9 +97,9 @@ export function WheelPicker<T extends string | number>({
 
   // Re-sync when `value` changes from outside this wheel's own scrolling —
   // e.g. the modal reopening with a different initial time, or a sibling
-  // wheel's change clamping this one (see hybrid-task-modal.tsx's
-  // clampAfter). A change this wheel itself just committed is skipped so it
-  // doesn't fight the user's own scroll or double-animate after every tick.
+  // wheel's change clamping this one. A change this wheel itself just
+  // committed is skipped so it doesn't fight the user's own scroll or
+  // double-animate after every tick.
   useEffect(() => {
     if (value !== lastCommitted.current) {
       lastCommitted.current = value;
@@ -217,7 +216,7 @@ const styles = StyleSheet.create({
   },
   itemText: {
     fontFamily: Fonts.extraBold,
-    fontSize: 22,
+    fontSize: 25.5,
     color: Colors.ink,
   },
 });

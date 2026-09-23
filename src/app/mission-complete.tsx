@@ -61,12 +61,12 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#f0f0f0' },
   safeArea: { flex: 1, alignItems: 'center' },
   top: { alignItems: 'center', paddingTop: Spacing.xxxl + 24 },
-  clock: { fontFamily: Fonts.extraBold, fontSize: 88, color: '#fff' },
-  ampm: { fontFamily: Fonts.bold, fontSize: 26, color: '#fff', opacity: 0.85 },
+  clock: { fontFamily: Fonts.extraBold, fontSize: 101, color: '#fff' },
+  ampm: { fontFamily: Fonts.bold, fontSize: 30, color: '#fff', opacity: 0.85 },
   center: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center', gap: 24 },
   title: {
     fontFamily: Fonts.extraBold,
-    fontSize: 34,
+    fontSize: 39,
     color: Colors.ink,
     textAlign: 'center',
     lineHeight: 40,
@@ -80,5 +80,5 @@ const styles = StyleSheet.create({
     borderRadius: Radii.lg,
     alignItems: 'center',
   },
-  homeBtnText: { fontFamily: Fonts.extraBold, fontSize: 16, color: '#fff' },
+  homeBtnText: { fontFamily: Fonts.extraBold, fontSize: 18.5, color: '#fff' },
 });

@@ -1,23 +1,22 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 
-import { TrashIcon } from '@/components/icons';
+import { GlassCard } from '@/components/glass-card';
 import { Toggle } from '@/components/toggle';
-import { Colors, Fonts, Radii, Shadows } from '@/constants/theme';
+import { Colors, Fonts, Radii } from '@/constants/theme';
 import { formatClock, repeatSummary } from '@/lib/alarm-utils';
 import { MissionIcon } from '@/lib/mission-meta';
 import { Alarm } from '@/lib/types';
+import { Trash } from 'lucide-react-native';
 
 export function AlarmCard({
   alarm,
-  taskCount = 0,
   onPress,
   onToggle,
   onLongPress,
   onDelete,
 }: {
   alarm: Alarm;
-  taskCount?: number;
   onPress: () => void;
   onToggle: (next: boolean) => void;
   onLongPress?: () => void;
@@ -32,42 +31,44 @@ export function AlarmCard({
 
   return (
     <Pressable
-      style={[styles.card, !alarm.enabled && styles.cardDim]}
+      style={!alarm.enabled && styles.cardDim}
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={400}>
-      <View style={styles.iconWrap}>
-        <MissionIcon method={alarm.dismissMethod} size={18} color={Colors.accentDeep} />
-      </View>
-      <View style={styles.main}>
-        <Text style={styles.repeatLabel}>
-          {repeatSummary(alarm.repeatDays)} · {alarm.smartWakeEnabled ? 'Wake Window' : 'Fixed time'}
-        </Text>
-        {alarm.smartWakeEnabled ? (
-          <Text style={styles.time}>
-            {formatClock(alarm.windowStart).value}
-            {'–'}
-            {end.value}
-            <Text style={styles.ampm}> {end.ampm}</Text>
+      <GlassCard style={styles.card}>
+        <View style={styles.iconWrap}>
+          <MissionIcon method={alarm.dismissMethod} size={20.5} color={Colors.accentDeep} />
+        </View>
+        <View style={styles.main}>
+          {!!alarm.label && (
+            <Text style={styles.name} numberOfLines={1}>
+              {alarm.label}
+            </Text>
+          )}
+          <Text style={styles.repeatLabel}>
+            {repeatSummary(alarm.repeatDays)} · {alarm.smartWakeEnabled ? 'Wake Window' : 'Fixed time'}
           </Text>
-        ) : (
-          <Text style={styles.time}>
-            {end.value}
-            <Text style={styles.ampm}> {end.ampm}</Text>
-          </Text>
-        )}
-        {taskCount > 0 && (
-          <Text style={styles.taskBadge}>
-            +{taskCount} task{taskCount === 1 ? '' : 's'}
-          </Text>
-        )}
-      </View>
-      <View style={styles.actions}>
-        <Toggle value={alarm.enabled} onChange={onToggle} />
-        <Pressable style={styles.deleteBtn} onPress={onDelete} hitSlop={6}>
-          <TrashIcon size={16} color={Colors.danger} />
-        </Pressable>
-      </View>
+          {alarm.smartWakeEnabled ? (
+            <Text style={styles.time}>
+              {formatClock(alarm.windowStart).value}
+              {'–'}
+              {end.value}
+              <Text style={styles.ampm}> {end.ampm}</Text>
+            </Text>
+          ) : (
+            <Text style={styles.time}>
+              {end.value}
+              <Text style={styles.ampm}> {end.ampm}</Text>
+            </Text>
+          )}
+        </View>
+        <View style={styles.actions}>
+          <Toggle value={alarm.enabled} onChange={onToggle} />
+          <Pressable style={styles.deleteBtn} onPress={onDelete} hitSlop={6}>
+            <Trash size={18.5} color={Colors.danger} />
+          </Pressable>
+        </View>
+      </GlassCard>
     </Pressable>
   );
 }
@@ -77,10 +78,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: Colors.cardBg,
     borderRadius: Radii.lg,
     padding: 16,
-    ...Shadows.card,
   },
   cardDim: { opacity: 0.5 },
   iconWrap: {
@@ -96,29 +95,29 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  name: {
+    fontFamily: Fonts.extraBold,
+    fontSize: 17,
+    color: Colors.ink,
+    marginBottom: 2,
+  },
   repeatLabel: {
     fontFamily: Fonts.bold,
-    fontSize: 11.5,
+    fontSize: 13,
     color: Colors.inkFaint,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
   time: {
     fontFamily: Fonts.extraBold,
-    fontSize: 21,
+    fontSize: 24,
     color: Colors.ink,
     marginTop: 3,
   },
   ampm: {
     fontFamily: Fonts.bold,
-    fontSize: 12,
+    fontSize: 14,
     color: Colors.inkFaint,
-  },
-  taskBadge: {
-    fontFamily: Fonts.bold,
-    fontSize: 11,
-    color: Colors.accentDeep,
-    marginTop: 3,
   },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 2, flexShrink: 0 },
   // 44x44 is Apple HIG's minimum tap target; the 16px icon alone (even with

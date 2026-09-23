@@ -6,10 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AlarmCard } from '@/components/alarm-card';
 import { BeeLogo } from '@/components/bee-logo';
 import { CountdownDial } from '@/components/countdown-dial';
-import { FloatingTabBar } from '@/components/floating-tab-bar';
+import { GlassCard } from '@/components/glass-card';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
-import { ChevronRight, MoonIcon, StreakIcon } from '@/components/icons';
-import { WaveBackground } from '@/components/wave-background';
+import { BedDouble, ChevronRight, Flame, Siren } from 'lucide-react-native';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
 import {
   countdownTo,
@@ -21,9 +20,7 @@ import {
 import { useAlarmDraft } from '@/lib/alarm-draft-context';
 import {
   deleteAlarm,
-  deleteAlarmTasks,
   getAlarms,
-  getAlarmTaskCounts,
   getRecentWakeEvents,
   getSettings,
   saveAlarm,
@@ -52,22 +49,19 @@ export default function HomeScreen() {
   const router = useRouter();
   const { startDraft } = useAlarmDraft();
   const [alarms, setAlarms] = useState<Alarm[]>([]);
-  const [taskCounts, setTaskCounts] = useState<Record<string, number>>({});
   const [streak, setStreak] = useState(0);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const load = useCallback(async () => {
-    const [rows, events, appSettings, counts] = await Promise.all([
+    const [rows, events, appSettings] = await Promise.all([
       getAlarms(),
       getRecentWakeEvents(30),
       getSettings(),
-      getAlarmTaskCounts(),
     ]);
     setAlarms(rows);
     setStreak(computeStreak(events.map((e) => e.date)));
     setSettings(appSettings);
-    setTaskCounts(counts);
   }, []);
 
   useFocusEffect(
@@ -130,7 +124,6 @@ export default function HomeScreen() {
         onPress: async () => {
           await cancelAlarmNotification(alarm.id);
           await deleteAlarm(alarm.id);
-          await deleteAlarmTasks(alarm.id);
           load();
         },
       },
@@ -149,7 +142,6 @@ export default function HomeScreen() {
             alarms.map(async (a) => {
               await cancelAlarmNotification(a.id);
               await deleteAlarm(a.id);
-              await deleteAlarmTasks(a.id);
             })
           );
           load();
@@ -160,7 +152,6 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.screen}>
-      <WaveBackground />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <View>
@@ -171,15 +162,14 @@ export default function HomeScreen() {
             </View>
           </View>
           <View style={styles.streak}>
-            <StreakIcon size={12} />
+            <Flame size={14} color={Colors.accent} />
             <Text style={styles.streakText}>{streak}</Text>
           </View>
         </View>
 
         <View style={styles.fixedTop}>
           {primary ? (
-            <View style={styles.hero}>
-              <View style={styles.heroGlow} />
+            <GlassCard style={styles.hero}>
               <CountdownDial
                 {...(primary.smartWakeEnabled
                   ? countdownToWindowStart(primary)
@@ -197,48 +187,52 @@ export default function HomeScreen() {
                 </Text>
                 <Text style={styles.heroSub}>{repeatSummary(primary.repeatDays)}</Text>
               </View>
-            </View>
+            </GlassCard>
           ) : (
-            <View style={styles.hero}>
+            <GlassCard style={styles.hero}>
               <Text style={styles.emptyHero}>
                 {alarms.length === 0
                   ? 'No alarms yet — tap + to add your first alarm.'
                   : 'All your alarms are off — enable one to start your countdown.'}
               </Text>
-            </View>
+            </GlassCard>
           )}
 
           {settings?.windDownEnabled && (
-            <Pressable style={styles.windDownHero} onPress={() => router.push('/wind-down-settings')}>
-              <View style={styles.windDownGlow} />
-              {windDownCountdown ? (
-                <CountdownDial progress={windDownCountdown.progress} label={windDownCountdown.label} size={72} />
-              ) : (
-                <View style={styles.windDownDialPlaceholder}>
-                  <MoonIcon size={22} color={Colors.accentDeep} />
+            <Pressable onPress={() => router.push('/wind-down-settings')}>
+              <GlassCard style={styles.windDownHero}>
+                {windDownCountdown ? (
+                  <CountdownDial progress={windDownCountdown.progress} label={windDownCountdown.label} size={72} />
+                ) : (
+                  <View style={styles.windDownDialPlaceholder}>
+                    <BedDouble size={25.5} color={Colors.accentDeep} />
+                  </View>
+                )}
+                <View style={styles.windDownText}>
+                  <Text style={styles.windDownLabel}>
+                    {windDownCountdown ? 'Bedtime reminder in' : 'Bedtime Reminder'}
+                  </Text>
+                  <Text style={styles.windDownTime}>
+                    {settings.bedtime
+                      ? `${formatClock(settings.bedtime).value} ${formatClock(settings.bedtime).ampm}`
+                      : 'Tap to set bedtime'}
+                  </Text>
+                  <Text style={styles.windDownSub}>
+                    {settings.bedtime
+                      ? `${settings.windDownOffsetMin} min reminder before bedtime`
+                      : 'Reminder before bed'}
+                  </Text>
                 </View>
-              )}
-              <View style={styles.windDownText}>
-                <Text style={styles.windDownLabel}>
-                  {windDownCountdown ? 'Bedtime reminder in' : 'Bedtime Reminder'}
-                </Text>
-                <Text style={styles.windDownTime}>
-                  {settings.bedtime
-                    ? `${formatClock(settings.bedtime).value} ${formatClock(settings.bedtime).ampm}`
-                    : 'Tap to set bedtime'}
-                </Text>
-                <Text style={styles.windDownSub}>
-                  {settings.bedtime
-                    ? `${settings.windDownOffsetMin} min reminder before bedtime`
-                    : 'Reminder before bed'}
-                </Text>
-              </View>
-              <ChevronRight />
+                <ChevronRight size={17.5} color={Colors.inkFaint} />
+              </GlassCard>
             </Pressable>
           )}
 
           <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>Your Alarms</Text>
+            <View style={styles.sectionTitleRow}>
+              <Siren size={22} color={Colors.accentDeep} />
+              <Text style={styles.sectionTitle}>Your Alarms</Text>
+            </View>
             <Pressable style={styles.kebab} onPress={() => setMenuOpen(true)} hitSlop={10}>
               <View style={styles.kebabDot} />
               <View style={styles.kebabDot} />
@@ -255,7 +249,6 @@ export default function HomeScreen() {
           renderItem={({ item }) => (
             <AlarmCard
               alarm={item}
-              taskCount={taskCounts[item.id] ?? 0}
               onPress={() => {
                 startDraft(item);
                 router.push('/add-edit');
@@ -272,7 +265,6 @@ export default function HomeScreen() {
           )}
         />
       </SafeAreaView>
-      <FloatingTabBar />
 
       <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
         <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
@@ -321,9 +313,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
   },
-  eyebrow: { fontFamily: Fonts.bold, fontSize: 12.5, color: Colors.inkFaint },
+  eyebrow: { fontFamily: Fonts.bold, fontSize: 14.5, color: Colors.inkFaint },
   wordmarkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  wordmark: { fontFamily: Fonts.brand, fontSize: 20, color: Colors.ink },
+  wordmark: { fontFamily: Fonts.brand, fontSize: 23, color: Colors.ink },
   streak: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -334,7 +326,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     ...Shadows.card,
   },
-  streakText: { fontFamily: Fonts.extraBold, fontSize: 13.5, color: Colors.ink },
+  streakText: { fontFamily: Fonts.extraBold, fontSize: 15.5, color: Colors.ink },
   fixedTop: {
     paddingHorizontal: Spacing.xxl,
     paddingTop: Spacing.md,
@@ -347,56 +339,33 @@ const styles = StyleSheet.create({
     paddingBottom: 140,
     gap: Spacing.md,
   },
+  // Shape/layout only — GlassCard (src/components/glass-card.tsx) owns
+  // backgroundColor/overflow/shadow itself, differently per whether real
+  // Liquid Glass is available or not.
   hero: {
-    position: 'relative',
-    overflow: 'hidden',
-    backgroundColor: Colors.cardBg,
     borderRadius: Radii.xl,
     padding: Spacing.xl,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.lg,
-    ...Shadows.card,
-  },
-  heroGlow: {
-    position: 'absolute',
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: Colors.accent + '33',
-    top: -70,
-    right: -60,
   },
   heroText: { flex: 1, minWidth: 0 },
   heroLabel: {
     fontFamily: Fonts.extraBold,
-    fontSize: 11,
+    fontSize: 12.5,
     color: Colors.inkFaint,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  heroRange: { fontFamily: Fonts.extraBold, fontSize: 19, color: Colors.ink, marginTop: 5 },
-  heroSub: { fontFamily: Fonts.bold, fontSize: 12.5, color: Colors.inkSoft, marginTop: 4 },
-  emptyHero: { fontFamily: Fonts.semiBold, fontSize: 14, color: Colors.inkFaint, lineHeight: 20 },
+  heroRange: { fontFamily: Fonts.extraBold, fontSize: 22, color: Colors.ink, marginTop: 5 },
+  heroSub: { fontFamily: Fonts.bold, fontSize: 14.5, color: Colors.inkSoft, marginTop: 4 },
+  emptyHero: { fontFamily: Fonts.semiBold, fontSize: 16, color: Colors.inkFaint, lineHeight: 20 },
   windDownHero: {
-    position: 'relative',
-    overflow: 'hidden',
-    backgroundColor: Colors.cardBg,
     borderRadius: Radii.lg,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    ...Shadows.card,
-  },
-  windDownGlow: {
-    position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.accent + '26',
-    top: -50,
-    right: -40,
   },
   windDownDialPlaceholder: {
     width: 72,
@@ -409,20 +378,21 @@ const styles = StyleSheet.create({
   windDownText: { flex: 1, minWidth: 0 },
   windDownLabel: {
     fontFamily: Fonts.extraBold,
-    fontSize: 10.5,
+    fontSize: 12,
     color: Colors.inkFaint,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  windDownTime: { fontFamily: Fonts.extraBold, fontSize: 18, color: Colors.ink, marginTop: 3 },
-  windDownSub: { fontFamily: Fonts.semiBold, fontSize: 11.5, color: Colors.inkSoft, marginTop: 3 },
+  windDownTime: { fontFamily: Fonts.extraBold, fontSize: 20.5, color: Colors.ink, marginTop: 3 },
+  windDownSub: { fontFamily: Fonts.semiBold, fontSize: 13, color: Colors.inkSoft, marginTop: 3 },
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: Spacing.xxl,
   },
-  sectionTitle: { fontFamily: Fonts.extraBold, fontSize: 15, color: Colors.ink },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionTitle: { fontFamily: Fonts.extraBold, fontSize: 20, color: Colors.ink },
   kebab: { flexDirection: 'row', gap: 3, padding: 6 },
   kebabDot: { width: 3.5, height: 3.5, borderRadius: 2, backgroundColor: Colors.inkFaint },
   menuBackdrop: {
@@ -439,7 +409,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   menuRow: { paddingVertical: 16, alignItems: 'center' },
-  menuRowText: { fontFamily: Fonts.bold, fontSize: 16, color: Colors.ink },
+  menuRowText: { fontFamily: Fonts.bold, fontSize: 18.5, color: Colors.ink },
   menuRowDanger: { color: Colors.danger },
   menuDivider: { height: StyleSheet.hairlineWidth, backgroundColor: Colors.trackOff },
   menuCancel: {
@@ -448,5 +418,5 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
   },
-  menuCancelText: { fontFamily: Fonts.extraBold, fontSize: 16, color: Colors.ink },
+  menuCancelText: { fontFamily: Fonts.extraBold, fontSize: 18.5, color: Colors.ink },
 });

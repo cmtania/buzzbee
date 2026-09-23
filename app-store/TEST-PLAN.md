@@ -31,9 +31,9 @@ of these tests.
       "What BuzzBee can do for you" (informational, no toggles) → Choose a Mission →
       Ringer Check → Summary. Progress bar fills smoothly across all 8, reaching
       100% on the Summary screen.
-- [ ] "What BuzzBee can do for you" screen: confirm there are **three** rows
-      (Bedtime Reminder, Calendar Auto-Shift, Task After You're Awake) and **none**
-      of them have a toggle — purely informational.
+- [ ] "What BuzzBee can do for you" screen: confirm there are **two** rows
+      (Bedtime Reminder, Calendar Auto-Shift) and **neither** has a toggle —
+      purely informational.
 - [ ] Ringer Check screen: tap Play — volume audibly ramps up over ~8 seconds
       (not instant full volume). Toggle Vibrate off/on and confirm the phone
       actually buzzes only while it's on and playing.
@@ -41,13 +41,19 @@ of these tests.
 
 ## 2. Core alarm — fixed-time (Wake Window off)
 
-- [ ] Create an alarm, Wake Window **off**, deadline ~2 minutes out, Math mission.
+- [ ] Create an alarm, Wake Window **off**, deadline ~2 minutes out, Math mission,
+      and type a name into the **Alarm name** field (e.g. "Meds").
+- [ ] Confirm the name shows on the Home alarm card, above the time.
 - [ ] Flip Silent mode ON.
 - [ ] Force-quit BuzzBee from the app switcher.
 - [ ] Wait, untouched, until the deadline. Alarm rings audibly at full volume
       despite Silent mode, Lock Screen alert visible.
-- [ ] Tap the alert — launches straight into the mission screen, not Home.
+- [ ] Tap the alert — launches straight into the mission screen, not Home —
+      and confirm the name entered above appears on the ringing screen too.
 - [ ] Solve the mission — alarm stops, lands on Mission Complete.
+- [ ] Separately, create/edit an alarm leaving the name blank — confirm no name
+      row appears on its Home card or ringing screen (not a blank line, not a
+      placeholder — nothing).
 
 ## 3. Core alarm — Wake Window (gentle ramp)
 
@@ -73,6 +79,24 @@ actually dismisses on completion:
 - [ ] **Random** — rings, resolves to one of the above (not literally "Random" as
       the mission itself) — confirm it's actually solvable.
 
+## 4b. Choose Mission — Preview
+
+- [ ] From Add/Edit Alarm → Choose Mission, tap **Preview** on any mission card
+      (not the card itself, and not the Choose/Selected button) — it opens the
+      real ringing screen with that mission live and playable.
+- [ ] Confirm the preview is inert: no sound plays, no vibration, volume isn't
+      boosted, and the status pill reads "Preview — this alarm isn't really
+      ringing" instead of the normal ringing status.
+- [ ] Try the mission through to completion — it just closes the preview
+      (no Mission Complete screen, no wake history recorded).
+- [ ] Tap **Close** instead of finishing the mission — returns to Choose
+      Mission without changing the alarm's selected mission.
+- [ ] Tap **Pick this mission** from inside a preview — returns to the Add/Edit
+      form with that mission now selected (confirm on the form, not just that
+      it navigated back).
+- [ ] Preview a mission while the Alarm Name field has text in it — the name
+      appears on the preview's ringing screen, live, matching what's typed.
+
 ## 5. Record Your Own Alarm Sound
 
 - [ ] Settings → Sound & Haptics → Record a New Sound (or from an alarm's Choose a
@@ -83,6 +107,13 @@ actually dismisses on completion:
 - [ ] Set an alarm to use it, let it ring — your recorded sound actually plays.
 - [ ] Delete the recording (trash icon) — row disappears immediately; an alarm
       that was using it falls back gracefully (doesn't crash, silently uses default).
+- [ ] Record several sounds so the Choose a Sound list is taller than the sheet
+      — confirm the list scrolls and every sound (including the last default
+      tone) is reachable, with "Record a New Sound" staying pinned at the top
+      rather than scrolling away.
+- [ ] On that same screen, drag down from the title/handle to dismiss the sheet
+      — confirm a downward drag *inside the sound list* scrolls it instead of
+      closing the sheet.
 
 ## 6. Bedtime Reminder & Calendar Auto-Shift
 
@@ -93,85 +124,35 @@ actually dismisses on completion:
       relaunch first if you'd already opened it once today) — a "Shift your wake
       window?" notification appears within a few seconds.
 
-## 7. Task After You're Awake (the newest feature — test this thoroughly)
-
-### 7a. Adding/editing tasks
-
-- [ ] Open an alarm, tap **+ Add Task** — a modal opens (not an inline row), with
-      a task-name field and a time picker.
-- [ ] Try scrolling the time picker to a time **before** the alarm's own deadline —
-      confirm it snaps back / won't let you leave it there (task time must stay
-      after the deadline).
-- [ ] While the name field is focused, confirm the keyboard popping up does **not**
-      hide the modal's buttons — everything stays reachable above the keyboard.
-- [ ] Save it — appears in the task list on Add/Edit with a visible **Edit** button.
-      Tap Edit — same modal reopens, pre-filled, with a working Delete button.
-- [ ] Add a 6th task attempt — confirm it's blocked (cap is 5) with a visible note,
-      not a silent failure.
-- [ ] Save the alarm. Reopen it later — tasks persisted correctly, same order.
-
-### 7b. Notification-only firing (not a second alarm)
-
-- [ ] Create an alarm ~2 minutes out with one task ~3 minutes out. Let the alarm
-      ring and **complete the mission**. Wait for the task's time.
-- [ ] Confirm the task arrives as a **plain notification** — no full-screen ring,
-      no Silent-mode override, no mission. Just a normal banner/lock-screen notification.
-- [ ] Tap the notification — a small "Did you finish this?" dialog opens with
-      **Not yet** / **Done!** buttons. Tap one — dialog closes.
-- [ ] Repeat, but this time **ignore** the notification entirely (swipe it away,
-      don't tap it) — confirm nothing else happens (no re-prompt, no crash) and
-      note the date for §7d below.
-
-### 7c. Cancel-on-ring, restore-on-dismiss (the tricky one — test both branches)
-
-- [ ] **Branch A — mission finished:** alarm + task as in 7b, but this time
-      complete the mission promptly. Confirm the task notification **does** arrive
-      at its scheduled time.
-- [ ] **Branch B — mission NOT finished:** create a fresh alarm + task pair. When
-      the alarm rings, **do not** complete the mission (let it keep ringing, or
-      force-quit and don't reopen). Confirm the task's notification **never
-      arrives** at its scheduled time. This is the one most likely to regress —
-      don't skip it.
-
-### 7d. History reflects task completion correctly
-
-- [ ] Open History (calendar view — see §8) and tap today's date.
-- [ ] Confirm the task you answered "Done!" to in §7b shows as completed (green
-      check), the one you answered "Not yet" to shows as not completed (red X),
-      and the one you **ignored** also shows as not completed (red X) — ignoring
-      and explicitly declining should look identical in the UI.
-
-## 8. History — calendar view
+## 7. History — calendar view
 
 - [ ] Open the History tab — a month-grid calendar, not the old 7-day chart.
 - [ ] Today's date is visually distinct (highlighted/bold) and pre-selected.
 - [ ] Tap a few different dates — the detail card below updates each time:
-      alarms-triggered count, missions-finished ratio, and a task checklist (only
-      for alarms that were actually dismissed that day).
+      alarms-triggered count and missions-finished ratio.
 - [ ] Navigate to the previous month and back using the arrows — calendar grid
       updates correctly, dots (green = mission completed, red = rang but wasn't)
       appear on the right dates.
 - [ ] Tap a date with no alarm activity at all — detail card reads "No alarms
       rang this day" rather than showing stale data from a previously selected date.
 
-## 9. Home screen — swipe-to-delete
+## 8. Home screen — alarm card delete
 
-- [ ] On an alarm card, swipe right-to-left — a delete button is revealed behind it.
+- [ ] On an alarm card, tap the trash icon (always visible, right side of the
+      card next to the enable toggle — not a swipe-to-reveal gesture).
 - [ ] Tap it — the alarm is deleted immediately (no confirmation dialog by design).
 - [ ] Confirm its notifications/AlarmKit registration are actually cancelled (best
       check: delete an alarm that's about to ring within the next minute, confirm
       it does **not** ring).
-- [ ] Swipe a row open, then swipe it back closed (or tap elsewhere) without
-      tapping delete — confirm nothing is deleted and the row returns to normal.
 - [ ] Confirm normal tap-to-edit and the enable/disable toggle still work
-      correctly on a row that hasn't been swiped.
+      correctly, and that tapping the trash icon never also triggers edit.
 
-## 10. Settings → Reset Data
+## 9. Settings → Reset Data
 
 **Do this test last** — it wipes everything else you just tested.
 
-- [ ] Create at least one alarm with a task, some wake history, and a custom sound
-      first, so there's actually something to lose.
+- [ ] Create at least one alarm, some wake history, and a custom sound first, so
+      there's actually something to lose.
 - [ ] Settings → Danger Zone → Reset Data. Confirm the dialog requires typing
       **CONFIRM** exactly — try leaving it blank or typing something else first
       and confirm it's rejected with a clear message, no data lost.
@@ -183,7 +164,7 @@ actually dismisses on completion:
       now-nonexistent alarm). This is the real proof the native
       AlarmKit/notification cancellation actually ran, not just the DB wipe.
 
-## 11. Regression sweep (quick, but don't skip)
+## 10. Regression sweep (quick, but don't skip)
 
 - [ ] Enable All / Disable All / Delete All from Home's "•••" menu still work.
 - [ ] Editing an alarm's Wake Window toggle, repeat days, and sound all save correctly.
@@ -192,6 +173,15 @@ actually dismisses on completion:
 - [ ] App icon, splash screen, and general navigation all still look correct end
       to end (no leftover placeholder text or broken images from any of the
       screens touched by recent changes).
+- [ ] Bottom tab bar (Home/History/Settings) is the OS's native tab bar, reads
+      as Liquid Glass on iOS 26, and the floating "+" create-alarm button tracks
+      correctly above it on all three tabs — drag it around and confirm it
+      still lands above the tab bar row, not behind or overlapping it.
+- [ ] Glass surfaces (hero card, alarm cards, Settings groups, Choose Mission/
+      Choose Sound cards, Bedtime modal) render with no color tint — reads as
+      clear/frosted glass, not an orange- or amber-tinted card.
+- [ ] Every icon app-wide (nav, mission icons, Settings rows, alarm card) is a
+      real lucide icon, not a missing-icon box or blank space.
 
 ---
 

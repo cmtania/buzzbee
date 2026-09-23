@@ -169,10 +169,10 @@ const styles = StyleSheet.create({
   stopIcon: { width: 30, height: 30, borderRadius: 5, backgroundColor: INK },
   vibrateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   vibrateCardSpacing: { marginBottom: 14 },
-  vibrateLabel: { fontFamily: Fonts.extraBold, fontSize: 14, color: INK },
+  vibrateLabel: { fontFamily: Fonts.extraBold, fontSize: 16, color: INK },
   caption: {
     fontFamily: Fonts.bold,
-    fontSize: 13.5,
+    fontSize: 15.5,
     color: INK_SOFT,
     textAlign: 'center',
     marginBottom: 26,
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     padding: 18,
     ...Shadows.card,
   },
-  tipTitle: { fontFamily: Fonts.extraBold, fontSize: 13, color: INK, marginBottom: 10 },
+  tipTitle: { fontFamily: Fonts.extraBold, fontSize: 15, color: INK, marginBottom: 10 },
   tipStep: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
   tipNum: {
     width: 18,
@@ -197,6 +197,6 @@ const styles = StyleSheet.create({
     marginTop: 1,
     flexShrink: 0,
   },
-  tipNumText: { fontFamily: Fonts.extraBold, fontSize: 10.5, color: ACCENT_DEEP },
-  tipStepText: { flex: 1, fontFamily: Fonts.semiBold, fontSize: 12.5, color: INK_SOFT, lineHeight: 18 },
+  tipNumText: { fontFamily: Fonts.extraBold, fontSize: 12, color: ACCENT_DEEP },
+  tipStepText: { flex: 1, fontFamily: Fonts.semiBold, fontSize: 14.5, color: INK_SOFT, lineHeight: 18 },
 });

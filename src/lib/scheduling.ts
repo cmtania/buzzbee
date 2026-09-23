@@ -4,7 +4,6 @@ import { Platform } from 'react-native';
 import { endOfDay, formatTime12h, isoMatchesTime, nextOccurrence } from './alarm-utils';
 import { cancelAlarmKitAlarm, disarmConfirmationAlarm, scheduleAlarmKitAlarm } from './alarmkit';
 import { getAlarmNotificationId, getWakeEventToday, setAlarmNotificationId } from './db';
-import { cancelHybridTaskChain, scheduleHybridTaskChain } from './hybrid-tasks';
 import { isSoundName, NOTIFICATION_SOUND_FILES } from './sounds';
 import { Alarm } from './types';
 
@@ -81,24 +80,10 @@ export async function scheduleAlarmNotification(alarm: Alarm): Promise<string | 
   });
 
   await setAlarmNotificationId(alarm.id, notificationId);
-  // Hybrid Alarm: (re)arm every follow-up task attached to this alarm
-  // alongside the alarm's own registration, so editing/re-saving the alarm
-  // automatically cascades to its whole task chain.
-  await scheduleHybridTaskChain(alarm);
   return notificationId;
 }
 
-/**
- * @param cancelTasks Also cancels this alarm's whole Hybrid Alarm task chain
- * (see cancelHybridTaskChain) — defaults to true for the common case of
- * genuinely disabling/deleting an alarm (Home's toggle-off/delete, add-edit's
- * disable/delete), where the tasks should stop firing too. `ringing.tsx`'s
- * `dismiss()` passes `false`: it calls this only to clear *today's
- * already-rung* instance of the main alarm, not to disable the alarm — the
- * follow-up tasks are meant to fire shortly after, independent of whether
- * the main alarm itself was just dismissed, so they must survive this call.
- */
-export async function cancelAlarmNotification(alarmId: string, cancelTasks = true): Promise<void> {
+export async function cancelAlarmNotification(alarmId: string): Promise<void> {
   await cancelAlarmKitAlarm(alarmId);
   // Covers the edge case of deleting/disabling an alarm while it's actively
   // ringing — otherwise a stray confirmation safety-net alarm (see
@@ -111,9 +96,21 @@ export async function cancelAlarmNotification(alarmId: string, cancelTasks = tru
     await Notifications.cancelScheduledNotificationAsync(existing).catch(() => {});
     await setAlarmNotificationId(alarmId, null);
   }
-  // See cancelHybridTaskChain's doc comment — this doesn't delete the task
-  // rows, so re-enabling/re-saving the alarm restores the identical chain.
-  if (cancelTasks) {
-    await cancelHybridTaskChain(alarmId);
-  }
+  // cancelScheduledNotificationAsync above only stops one that hasn't fired
+  // yet — this alarm's backup notification is scheduled for the exact same
+  // moment as AlarmKit's own native alert (see scheduleAlarmNotification), so
+  // on a genuine dismiss it has very likely already been delivered to
+  // Notification Center by the time this runs. Left alone, it would sit
+  // there tappable indefinitely; _layout.tsx's alarm-deadline handler now
+  // guards against acting on it, but clearing it here too means there's no
+  // stale duplicate notification to see at all.
+  await Notifications.getPresentedNotificationsAsync()
+    .then((presented) =>
+      Promise.all(
+        presented
+          .filter((n) => n.request.content.data?.type === 'alarm-deadline' && n.request.content.data?.alarmId === alarmId)
+          .map((n) => Notifications.dismissNotificationAsync(n.request.identifier).catch(() => {}))
+      )
+    )
+    .catch(() => {});
 }

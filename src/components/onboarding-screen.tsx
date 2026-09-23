@@ -4,8 +4,8 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ArrowRight, BackArrow } from '@/components/icons';
 import { Fonts, Radii, Spacing } from '@/constants/theme';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 
 export const ONBOARDING_TOTAL_STEPS = 8;
 
@@ -46,7 +46,7 @@ export function OnboardingScreen({
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.topRow}>
           <Pressable style={styles.backBtn} onPress={onBack ?? (() => router.back())} hitSlop={8}>
-            <BackArrow />
+            <ChevronLeft size={17.5} color="#6B5D4F" />
           </Pressable>
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${pct}%` }]} />
@@ -66,7 +66,7 @@ export function OnboardingScreen({
             disabled={continueDisabled}>
             <Text style={styles.continueLabel}>{continueLabel}</Text>
             <View style={styles.arrow}>
-              <ArrowRight size={18} color={INK} />
+              <ChevronRight size={20.5} color={INK} />
             </View>
           </Pressable>
         </View>
@@ -94,8 +94,8 @@ const styles = StyleSheet.create({
   progressTrack: { flex: 1, height: 6, backgroundColor: TRACK_OFF, borderRadius: 100, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: ACCENT, borderRadius: 100 },
   body: { padding: Spacing.xxl, paddingBottom: 40, flexGrow: 1 },
-  title: { fontFamily: Fonts.extraBold, fontSize: 25, color: INK, marginBottom: 10, lineHeight: 32 },
-  subtitle: { fontFamily: Fonts.semiBold, fontSize: 13.5, color: INK_FAINT, marginBottom: 22, lineHeight: 20 },
+  title: { fontFamily: Fonts.extraBold, fontSize: 28.5, color: INK, marginBottom: 10, lineHeight: 32 },
+  subtitle: { fontFamily: Fonts.semiBold, fontSize: 15.5, color: INK_FAINT, marginBottom: 22, lineHeight: 20 },
   footer: { padding: Spacing.xl, paddingTop: 0 },
   continueBtn: {
     height: 54,
@@ -112,6 +112,6 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   continueBtnDisabled: { opacity: 0.45 },
-  continueLabel: { fontFamily: Fonts.extraBold, fontSize: 16, color: INK },
+  continueLabel: { fontFamily: Fonts.extraBold, fontSize: 18.5, color: INK },
   arrow: { position: 'absolute', right: 18 },
 });

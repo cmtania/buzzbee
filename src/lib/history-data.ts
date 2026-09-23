@@ -1,12 +1,6 @@
 // Aggregation for History's calendar view — kept separate from db.ts's raw
 // queries so history.tsx doesn't have to assemble this itself.
-import {
-  getAlarmTasks,
-  getAlarmTriggersInRange,
-  getTaskEvent,
-  getWakeEventsForDate,
-  getWakeEventsInRange,
-} from './db';
+import { getAlarmTriggersInRange, getWakeEventsForDate, getWakeEventsInRange } from './db';
 
 export type DaySummary = {
   /** At least one alarm rang this day (see AlarmTriggerEvent). */
@@ -40,17 +34,9 @@ export type DayDetail = {
   date: string;
   alarmsTriggered: number;
   missionsCompleted: number;
-  tasks: { taskId: string; alarmId: string; label: string; completed: boolean }[];
 };
 
-/**
- * The full picture for one selected day, fetched only on tap (not for the
- * whole visible month) since it needs per-alarm task lookups. Task
- * completion is only meaningful for alarms whose mission was actually
- * completed that day — a task chain is provisionally cancelled the moment
- * its alarm rings and only restored on a genuine dismiss (see ringing.tsx),
- * so an alarm that rang but was never dismissed has no tasks to report on.
- */
+/** The full picture for one selected day, fetched only on tap (not for the whole visible month). */
 export async function getDayDetail(date: string): Promise<DayDetail> {
   const [triggeredAlarmIds, wakeEvents] = await Promise.all([
     getAlarmTriggersInRange(date, date).then((rows) => rows.map((r) => r.alarmId)),
@@ -58,19 +44,10 @@ export async function getDayDetail(date: string): Promise<DayDetail> {
   ]);
 
   const completedAlarmIds = [...new Set(wakeEvents.map((e) => e.alarmId))];
-  const tasks: DayDetail['tasks'] = [];
-  for (const alarmId of completedAlarmIds) {
-    const alarmTasks = await getAlarmTasks(alarmId);
-    for (const task of alarmTasks) {
-      const event = await getTaskEvent(task.id, date);
-      tasks.push({ taskId: task.id, alarmId, label: task.label, completed: event?.completed ?? false });
-    }
-  }
 
   return {
     date,
     alarmsTriggered: new Set(triggeredAlarmIds).size,
     missionsCompleted: completedAlarmIds.length,
-    tasks,
   };
 }

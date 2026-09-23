@@ -5,7 +5,6 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CheckIcon, MicIcon, TrashIcon } from '@/components/icons';
 import { SwipeToDismissSheet } from '@/components/swipe-to-dismiss-sheet';
 import { Toggle } from '@/components/toggle';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
@@ -13,6 +12,7 @@ import { getCustomSounds, removeCustomSound } from '@/lib/custom-sounds';
 import { getSettings, updateSettings } from '@/lib/db';
 import { safeAudioCall, SOUND_FILES, SOUND_NAMES } from '@/lib/sounds';
 import { AppSettings, CustomSound } from '@/lib/types';
+import { Check, Mic, Trash } from 'lucide-react-native';
 
 export default function SoundHapticsSettingsScreen() {
   const router = useRouter();
@@ -70,7 +70,7 @@ export default function SoundHapticsSettingsScreen() {
 
               <Pressable style={styles.recordRow} onPress={() => router.push('/record-sound')}>
                 <View style={styles.recordIconWrap}>
-                  <MicIcon size={16} color={Colors.accentDeep} />
+                  <Mic size={18.5} color={Colors.accentDeep} />
                 </View>
                 <Text style={styles.recordLabel}>Record a New Sound</Text>
               </Pressable>
@@ -163,7 +163,7 @@ function SoundRow({
         </Pressable>
         {onDelete && (
           <Pressable style={styles.deleteBtn} onPress={onDelete} hitSlop={8}>
-            <TrashIcon size={14} color={Colors.danger} />
+            <Trash size={16} color={Colors.danger} />
           </Pressable>
         )}
       </View>
@@ -172,7 +172,7 @@ function SoundRow({
       </Text>
       {selected && (
         <View style={styles.check}>
-          <CheckIcon size={11} />
+          <Check size={12.5} color={Colors.white} />
         </View>
       )}
     </Pressable>
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 8,
   },
-  title: { fontFamily: Fonts.extraBold, fontSize: 17, color: Colors.ink, textAlign: 'center' },
+  title: { fontFamily: Fonts.extraBold, fontSize: 19.5, color: Colors.ink, textAlign: 'center' },
   body: { paddingTop: Spacing.xl, gap: Spacing.lg, paddingBottom: Spacing.md },
   rowCard: {
     flexDirection: 'row',
@@ -208,18 +208,18 @@ const styles = StyleSheet.create({
     padding: 14,
     ...Shadows.card,
   },
-  rowLabel: { fontFamily: Fonts.bold, fontSize: 15, color: Colors.ink },
-  hint: { fontSize: 12, color: Colors.inkFaint, marginTop: -8, lineHeight: 16, fontFamily: Fonts.medium },
+  rowLabel: { fontFamily: Fonts.bold, fontSize: 17.5, color: Colors.ink },
+  hint: { fontSize: 14, color: Colors.inkFaint, marginTop: -8, lineHeight: 16, fontFamily: Fonts.medium },
   sectionLabel: {
     fontFamily: Fonts.bold,
-    fontSize: 12.5,
+    fontSize: 14.5,
     color: Colors.inkFaint,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 4,
   },
   sectionHint: {
-    fontSize: 12,
+    fontSize: 14,
     color: Colors.inkFaint,
     marginBottom: 12,
     lineHeight: 16,
@@ -245,10 +245,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  recordLabel: { fontFamily: Fonts.bold, fontSize: 15, color: Colors.accentDeep },
+  recordLabel: { fontFamily: Fonts.bold, fontSize: 17.5, color: Colors.accentDeep },
   subSectionLabel: {
     fontFamily: Fonts.bold,
-    fontSize: 12.5,
+    fontSize: 14.5,
     color: Colors.inkFaint,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -281,8 +281,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  playIcon: { fontSize: 13, color: Colors.ink },
-  tileLabel: { fontFamily: Fonts.bold, fontSize: 14, color: Colors.ink, marginTop: 12 },
+  playIcon: { fontSize: 15, color: Colors.ink },
+  tileLabel: { fontFamily: Fonts.bold, fontSize: 16, color: Colors.ink, marginTop: 12 },
   check: {
     position: 'absolute',
     bottom: 10,

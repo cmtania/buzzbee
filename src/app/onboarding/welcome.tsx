@@ -41,10 +41,10 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: BG },
   safeArea: { flex: 1, justifyContent: 'space-between', padding: 32 },
   hero: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 },
-  wordmark: { fontFamily: Fonts.extraBold, fontSize: 28, color: INK },
+  wordmark: { fontFamily: Fonts.extraBold, fontSize: 32, color: INK },
   tagline: {
     fontFamily: Fonts.semiBold,
-    fontSize: 14,
+    fontSize: 16,
     color: INK_SOFT,
     textAlign: 'center',
     lineHeight: 21,
@@ -62,5 +62,5 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 6,
   },
-  continueLabel: { fontFamily: Fonts.extraBold, fontSize: 16, color: INK },
+  continueLabel: { fontFamily: Fonts.extraBold, fontSize: 18.5, color: INK },
 });

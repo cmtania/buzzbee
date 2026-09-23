@@ -67,10 +67,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#F5A623',
   },
-  breathText: { color: '#FBF3E4', fontSize: 22, fontWeight: '800' },
+  breathText: { color: '#FBF3E4', fontSize: 25.5, fontWeight: '800' },
   caption: {
     color: '#B8A98E',
-    fontSize: 14,
+    fontSize: 16,
     textAlign: 'center',
     lineHeight: 20,
     paddingHorizontal: 20,
@@ -81,5 +81,5 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
   },
-  doneText: { color: '#2B2420', fontSize: 15, fontWeight: '800' },
+  doneText: { color: '#2B2420', fontSize: 17.5, fontWeight: '800' },
 });

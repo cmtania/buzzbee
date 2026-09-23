@@ -12,11 +12,11 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { MicIcon } from '@/components/icons';
 import { SwipeToDismissSheet } from '@/components/swipe-to-dismiss-sheet';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
 import { nextCustomSoundName, saveRecordingAsCustomSound } from '@/lib/custom-sounds';
 import { safeAudioCall } from '@/lib/sounds';
+import { Mic } from 'lucide-react-native';
 
 const MAX_DURATION_MS = 15000;
 
@@ -146,7 +146,7 @@ export default function RecordSoundScreen() {
             {phase === 'idle' && (
               <>
                 <Pressable style={styles.recordBtn} onPress={startRecording}>
-                  <MicIcon size={40} color={Colors.ink} />
+                  <Mic size={46} color={Colors.ink} />
                 </Pressable>
                 <Text style={styles.hint}>Tap to record — up to 15 seconds.{'\n'}It’ll loop while your alarm rings.</Text>
                 {permissionError && <Text style={styles.error}>{permissionError}</Text>}
@@ -169,7 +169,7 @@ export default function RecordSoundScreen() {
             {phase === 'recorded' && (
               <>
                 <View style={styles.doneBadge}>
-                  <MicIcon size={28} color={Colors.accentDeep} />
+                  <Mic size={32} color={Colors.accentDeep} />
                 </View>
                 <Text style={styles.hint}>{recordedElapsedSec}s recorded</Text>
 
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: Fonts.extraBold,
-    fontSize: 17,
+    fontSize: 19.5,
     color: Colors.ink,
     textAlign: 'center',
     marginTop: 8,
@@ -252,16 +252,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  timer: { fontFamily: Fonts.extraBold, fontSize: 26, color: Colors.ink },
-  timerMax: { fontFamily: Fonts.semiBold, fontSize: 15, color: Colors.inkFaint },
+  timer: { fontFamily: Fonts.extraBold, fontSize: 30, color: Colors.ink },
+  timerMax: { fontFamily: Fonts.semiBold, fontSize: 17.5, color: Colors.inkFaint },
   hint: {
     fontFamily: Fonts.medium,
-    fontSize: 13,
+    fontSize: 15,
     color: Colors.inkFaint,
     textAlign: 'center',
     lineHeight: 18,
   },
-  error: { fontFamily: Fonts.bold, fontSize: 12.5, color: Colors.danger, textAlign: 'center', marginTop: 4 },
+  error: { fontFamily: Fonts.bold, fontSize: 14.5, color: Colors.danger, textAlign: 'center', marginTop: 4 },
   actionsRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
   actionBtn: {
     alignItems: 'center',
@@ -273,8 +273,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 26,
     ...Shadows.card,
   },
-  actionIcon: { fontSize: 18, color: Colors.ink },
-  actionLabel: { fontFamily: Fonts.bold, fontSize: 12.5, color: Colors.ink },
+  actionIcon: { fontSize: 20.5, color: Colors.ink },
+  actionLabel: { fontFamily: Fonts.bold, fontSize: 14.5, color: Colors.ink },
   footer: { flexDirection: 'row', gap: 12, paddingTop: 4, paddingBottom: Spacing.xl },
   cancelBtn: {
     flex: 1,
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cancelText: { fontFamily: Fonts.extraBold, fontSize: 15.5, color: Colors.ink },
+  cancelText: { fontFamily: Fonts.extraBold, fontSize: 18, color: Colors.ink },
   saveBtn: {
     flex: 1,
     height: 52,
@@ -299,5 +299,5 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   saveBtnDisabled: { opacity: 0.4 },
-  saveText: { fontFamily: Fonts.extraBold, fontSize: 15.5, color: Colors.ink },
+  saveText: { fontFamily: Fonts.extraBold, fontSize: 18, color: Colors.ink },
 });

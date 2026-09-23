@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: CARD_BG, borderRadius: Radii.lg, overflow: 'hidden', marginBottom: 16 },
   row: { flexDirection: 'row', justifyContent: 'space-between', padding: 16 },
   rowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E3E5E7' },
-  rowLabel: { fontFamily: Fonts.semiBold, fontSize: 13.5, color: INK_FAINT },
-  rowValue: { fontFamily: Fonts.bold, fontSize: 13.5, color: INK },
-  footnote: { fontFamily: Fonts.medium, fontSize: 12, color: INK_FAINT, lineHeight: 18, textAlign: 'center' },
+  rowLabel: { fontFamily: Fonts.semiBold, fontSize: 15.5, color: INK_FAINT },
+  rowValue: { fontFamily: Fonts.bold, fontSize: 15.5, color: INK },
+  footnote: { fontFamily: Fonts.medium, fontSize: 14, color: INK_FAINT, lineHeight: 18, textAlign: 'center' },
 });

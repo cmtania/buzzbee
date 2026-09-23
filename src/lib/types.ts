@@ -4,6 +4,10 @@ export type DismissMethod = 'math' | 'clap' | 'shake' | 'buzz' | 'tap' | 'random
 
 export type Alarm = {
   id: string;
+  /** User's own name for this alarm ("Morning run", "Meds"). Optional —
+   * empty string when unnamed, so every display site can just check for
+   * truthiness rather than juggling null. */
+  label: string;
   windowStart: string; // "06:30"
   windowEnd: string; // "07:00" (hard deadline)
   repeatDays: number[]; // 0-6 (0 = Sunday), empty = one-off
@@ -49,22 +53,6 @@ export type WakeEvent = {
   dismissedAfterSeconds: number;
 };
 
-// Hybrid Alarm: a chain of follow-up tasks a user attaches to an alarm, each
-// with its own custom label and time, ringing (and repeating) alongside the
-// parent alarm — see PLAN.md's "Hybrid Alarm" section. One-to-many child of
-// Alarm (like WakeEvent), fetched separately by alarmId rather than embedded
-// on the Alarm type. No repeatDays of its own: a task always follows its
-// parent alarm's own repeatDays, so there's no per-task/parent drift to keep
-// in sync.
-export type AlarmTask = {
-  id: string;
-  alarmId: string;
-  label: string; // e.g. "Taking a bath" — shown in the AlarmKit alert title and the Lock Screen
-  time: string; // "HH:MM", same shape as Alarm.windowStart/windowEnd
-  sortOrder: number;
-  enabled: boolean;
-};
-
 /**
  * Recorded the moment an alarm actually starts ringing (ringing.tsx loading
  * it), regardless of whether the mission ever gets completed — distinct from
@@ -79,31 +67,6 @@ export type AlarmTriggerEvent = {
   date: string;
   triggeredAt: string; // ISO timestamp
 };
-
-/**
- * A user's response to "did you finish this task?", asked when they tap a
- * Hybrid Alarm task's notification (see task-check.tsx). `label` is a
- * snapshot of the task's label at response time, so History still reads
- * correctly if the task is later renamed or deleted. No row at all for a
- * given taskId+date means the notification was ignored — History treats a
- * missing record the same as `completed: false`, so an ignored task reads as
- * not completed without needing a separate "ignored" state.
- */
-export type TaskEvent = {
-  id: string;
-  taskId: string;
-  alarmId: string;
-  date: string;
-  label: string;
-  completed: boolean;
-  respondedAt: string; // ISO timestamp
-};
-
-// Precautionary app-level ceiling, not a proven Apple/AlarmKit limit — this
-// wrapper has no coded or documented concurrency cap, but real AlarmKit is
-// known to have undocumented OS-level limits. Cheap to relax later once
-// tested on-device with many concurrent registrations.
-export const MAX_HYBRID_TASKS = 5;
 
 // Mission target constants (v1: fixed, not per-alarm configurable)
 export const MATH_PROBLEMS = 1;
@@ -172,6 +135,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 export function newAlarmDraft(): Alarm {
   return {
     id: '',
+    label: '',
     windowStart: '06:30',
     windowEnd: '07:00',
     repeatDays: [1, 2, 3, 4, 5],

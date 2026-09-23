@@ -1,13 +1,6 @@
 import React from 'react';
+import { View } from 'react-native';
 
-import {
-  BuzzIcon,
-  ClapIcon,
-  MathIcon,
-  RandomIcon,
-  ShakeIcon,
-  TapIcon,
-} from '@/components/icons';
 import {
   DismissMethod,
   MISSION_COUNT_LABELS,
@@ -15,8 +8,35 @@ import {
   MISSION_LABELS,
   MISSION_SUBTITLES,
 } from '@/lib/types';
+import { Dices, Divide, Hand, Minus, Plus, Target, Vibrate, Volume2, X as MultiplyIcon } from 'lucide-react-native';
 
 export const MISSION_ORDER: DismissMethod[] = ['math', 'clap', 'shake', 'buzz', 'tap', 'random'];
+
+// No single lucide icon covers "math" the way Sigma/Calculator only gesture
+// at it — a 2x2 grid of the four basic operators reads unambiguously as
+// "math" at a glance, built from the same lucide primitives as every other
+// mission icon rather than a one-off custom SVG.
+function MathOperatorsIcon({ size = 24, color }: { size?: number; color?: string }) {
+  const opSize = size * 0.42;
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'center',
+        columnGap: size * 0.08,
+        rowGap: size * 0.08,
+      }}>
+      <Plus size={opSize} color={color} strokeWidth={2.75} />
+      <MultiplyIcon size={opSize} color={color} strokeWidth={2.75} />
+      <Minus size={opSize} color={color} strokeWidth={2.75} />
+      <Divide size={opSize} color={color} strokeWidth={2.75} />
+    </View>
+  );
+}
 
 export function MissionIcon({
   method,
@@ -29,17 +49,20 @@ export function MissionIcon({
 }) {
   switch (method) {
     case 'math':
-      return <MathIcon size={size} color={color} />;
+      return <MathOperatorsIcon size={size} color={color} />;
     case 'clap':
-      return <ClapIcon size={size} color={color} />;
+      return <Hand size={size} color={color} />;
     case 'shake':
-      return <ShakeIcon size={size} color={color} />;
+      return <Vibrate size={size} color={color} />;
     case 'buzz':
-      return <BuzzIcon size={size} color={color} />;
+      return <Volume2 size={size} color={color} />;
     case 'tap':
-      return <TapIcon size={size} color={color} />;
+      // Concentric rings around a center point — a tap's ripple, built from
+      // the same "circle inside a circle inside a circle" shape as a
+      // bullseye.
+      return <Target size={size} color={color} />;
     case 'random':
-      return <RandomIcon size={size} color={color} />;
+      return <Dices size={size} color={color} />;
   }
 }
 
