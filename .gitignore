@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+
+# promo slide render scratch (app-store/promo-src/build.mjs)
+app-store/promo-src/.render/
