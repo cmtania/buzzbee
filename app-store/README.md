@@ -13,8 +13,6 @@ Not bundled into the app — these are marketing/submission assets for App Store
 
 All images are 1320×2868 (Apple's required "6.9-inch Display" size).
 
-- `screenshots-6.9-raw/` — actual device screenshots of the real app (onboarding + a real
-  ringing screen), already at the correct resolution as captured.
 - `promo-6.9/` — original promotional graphics for the App Store product page (not
   screenshots): 01 brand, 02 Wake Window, 04 smart features, 05 dismiss missions (Shake, on the
   real dark ringing screen), 06 reliability/AlarmKit, 07 fixed-time vs. Wake Window, 08 Record
@@ -24,7 +22,11 @@ All images are 1320×2868 (Apple's required "6.9-inch Display" size).
   in step with the shipped UI. 01 is a static image and isn't generated. `test.png` is an old
   draft — don't upload it.
 
-Upload whichever set (or mix) you prefer to App Store Connect's 6.9" Display screenshot slot.
+The old raw device captures (`screenshots-6.9-raw/`) were deleted on 2026-09-23 — they
+predated the Liquid Glass redesign and no longer matched the app. If you add fresh device
+captures later, put them back in a folder of that name.
+
+Upload to App Store Connect's 6.9" Display screenshot slot.
 App Store Connect only strictly requires screenshots for the largest size in the iPhone
 family (6.9") — it's generally used to auto-fill smaller size slots (6.5", 6.1", etc.) if you
 don't upload device-specific captures for those, though it's worth double-checking that's
