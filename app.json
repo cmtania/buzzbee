@@ -8,6 +8,7 @@
     "scheme": "buzzbee",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "supportsTablet": false,
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.cmtania.buzzbeealarm",
       "infoPlist": {
@@ -15,7 +16,9 @@
         "NSAlarmKitUsageDescription": "BuzzBee schedules your alarms with AlarmKit so they can still ring — and open BuzzBee straight to your mission — even if the app is fully closed."
       },
       "entitlements": {
-        "com.apple.security.application-groups": ["group.com.cmtania.buzzbeealarm"]
+        "com.apple.security.application-groups": [
+          "group.com.cmtania.buzzbeealarm"
+        ]
       }
     },
     "android": {

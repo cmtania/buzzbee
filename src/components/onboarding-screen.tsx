@@ -39,7 +39,14 @@ export function OnboardingScreen({
   const router = useRouter();
   const pct = Math.round((step / ONBOARDING_TOTAL_STEPS) * 100);
   const Body = scroll ? ScrollView : View;
-  const bodyProps = scroll ? { contentContainerStyle: styles.body } : { style: styles.body };
+  // The body always takes only the space left above the footer (bodyArea) and
+  // shrinks into it; the footer never shrinks. So on a short screen — an iPhone
+  // app running on iPad in compatibility mode, or a small iPhone — the content
+  // scrolls (or, with scroll off, clips) instead of pushing Continue off-screen.
+  // App Review rejected v1.0 (Guideline 4) for exactly that on iPad.
+  const bodyProps = scroll
+    ? { style: styles.bodyArea, contentContainerStyle: styles.body }
+    : { style: [styles.bodyArea, styles.body] };
 
   return (
     <View style={styles.screen}>
@@ -93,10 +100,11 @@ const styles = StyleSheet.create({
   },
   progressTrack: { flex: 1, height: 6, backgroundColor: TRACK_OFF, borderRadius: 100, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: ACCENT, borderRadius: 100 },
+  bodyArea: { flex: 1, minHeight: 0 },
   body: { padding: Spacing.xxl, paddingBottom: 40, flexGrow: 1 },
   title: { fontFamily: Fonts.extraBold, fontSize: 28.5, color: INK, marginBottom: 10, lineHeight: 32 },
   subtitle: { fontFamily: Fonts.semiBold, fontSize: 15.5, color: INK_FAINT, marginBottom: 22, lineHeight: 20 },
-  footer: { padding: Spacing.xl, paddingTop: 0 },
+  footer: { padding: Spacing.xl, paddingTop: 0, flexShrink: 0 },
   continueBtn: {
     height: 54,
     borderRadius: Radii.lg,

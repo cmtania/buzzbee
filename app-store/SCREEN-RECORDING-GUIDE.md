@@ -44,7 +44,7 @@ This is the segment that matters most. Don't skip or rush it.
 
 ## Segment 2: Wake Window's gentle-to-loud ramp — also surviving force-quit
 
-Shows the *other* half of the story: a Wake Window alarm behaves exactly like the
+Shows the _other_ half of the story: a Wake Window alarm behaves exactly like the
 fixed-time one in segment 1 (force-quit doesn't break it — it's the same AlarmKit
 mechanism, just triggered at the window's start instead of a single fixed time),
 but rings gently at first and audibly builds to full volume rather than blasting
@@ -112,36 +112,33 @@ There's no UI path to a silent auto-apply variant (see `APP-REVIEW-GUIDE.md`), s
 this confirm-first notification appearing is the complete proof — no need to tap
 into it or show anything beyond the notification itself.
 
+## Segment 6: Bedtime Reminder
+
+## Segment 7: Reset Data
+
 ---
 
 ## What to write in the attached notes (paste alongside the recording)
 
 ```
-Attached: a screen recording proving BuzzBee's core reliability claim.
+Attached: screen recordings proving BuzzBee's core claims.
 
-0:00–[x] — A fixed-time alarm (Wake Window off) is force-quit from the app
-switcher, then rings at the scheduled time at full volume despite the device
-being in Silent mode — recorded with no interaction with BuzzBee in between.
+1 — A fixed-time alarm (Wake Window off) is set, the phone is switched to Silent, and BuzzBee is force-quit from the app switcher. At the scheduled time it still rings at full volume, with no interaction with BuzzBee in between.
 
-[x]–[y] — A second, Wake Window alarm is also force-quit, then starts ringing
-quietly right at its window's start and audibly builds to full volume by its
-deadline — showing the alarm survives a full close the same way in both modes,
-with Wake Window adding the gentle ramp on top.
+2 — A Wake Window alarm is set and BuzzBee is force-quit the same way. It starts ringing quietly when the window opens and builds to full volume by the hard deadline.
 
-[y]–[z] — The Clap mission dismissing an alarm, showing the microphone is only
-ever used to read a volume level.
+3 — The Buzz mission dismisses a ringing alarm by listening for a sustained "bzzzz" sound. The microphone only reads a live volume level; no audio is recorded or stored.
 
-[z]–[w] — Recording a custom alarm sound (Settings → Sound & Haptics → Record a
-New Sound) entirely in Airplane Mode, to demonstrate the recording never has
-network access to be uploaded over — it's saved to local device storage only.
+4 — A custom alarm sound is recorded (Settings → Sound & Haptics → Record a New Sound) with Airplane Mode on the whole time. With no network available, this shows the recording is saved only on the device and never uploaded.
 
-[w]–end — Calendar Auto-Shift: a real event added for tomorrow that conflicts
-with an alarm's hard deadline, checked between 1:00 PM and 11:59 PM local time
-(visible on the status bar clock), producing a "Shift your wake window?" notification with no
-interaction beyond opening the app.
+5 — A calendar event that conflicts with an alarm's hard deadline is added for tomorrow, and BuzzBee is opened between 1:00 PM and 11:59 PM (visible on the status bar clock). Within seconds a "Shift your wake window?" notification appears, with no other interaction.
+
+6 — A Bedtime Reminder is set, BuzzBee is closed, and the reminder notification arrives. Tapping it opens BuzzBee straight to the Bedtime breathing screen.
+
+7 — In Settings → Danger Zone, Reset Data is tapped and CONFIRM is typed. Every alarm, all alarm history, custom sounds and settings are deleted, and the app returns to its first-launch onboarding.
 ```
 
-Fill in the real timestamps once the recording is edited/trimmed, attach it as a
+Keep the numbers matching the order of the videos you attach, and attach each as a
 video file (or a link if App Store Connect's notes field doesn't accept an
 attachment directly — check the current upload limits when you get there), and
 reference it in the App Review Information notes from `APP-REVIEW-GUIDE.md`.

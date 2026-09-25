@@ -37,7 +37,6 @@ export default function MissionScreen() {
     <OnboardingScreen
       step={6}
       title="Choose your dismiss method"
-      scroll={false}
       onContinue={() => router.push('/onboarding/ringer-check')}>
       <View style={styles.grid}>
         {MISSION_ORDER.map((method) => {

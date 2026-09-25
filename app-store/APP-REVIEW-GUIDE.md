@@ -52,62 +52,45 @@ Wakes you at the right moment, not just the loud one.
 
 ## 1. App Review Information — paste-ready notes
 
-Paste this into App Store Connect → App Review Information → Notes.
+Paste this into App Store Connect → App Review Information → Notes. The field caps at
+4,000 characters (line breaks count as one); this version is 3,958, so keep edits small.
 
 ```
-BuzzBee is a single-user app — no account, login, or server, so there's nothing
-to demo-pair. Every feature is available right after install.
+BuzzBee is a single-user app — no account, login, or server. Every feature is available right after install.
 
-CORE MECHANIC: instead of one fixed time, an alarm can use a "Wake Window" (e.g.
-6:30–7:00 AM). Apple's AlarmKit reliably starts it at the window's start — even
-fully force-quit, through Silent mode and Focus — then it rings gently and ramps
-to full volume by the window's end (the hard deadline). No motion/sleep sensing
-involved, no dependency on the app being open. A fixed-time alarm (Wake Window
-off) works the same way, just as one instant instead of a ramp.
+QUICK TEST: create an alarm 2 minutes ahead. To try any mission without waiting for an alarm, open Choose Mission while editing an alarm and tap Preview — a silent, inert copy of the ringing screen.
 
-MINIMUM OS: iOS 26.1+ required — AlarmKit (the framework behind the reliable
-alarm) doesn't exist before iOS 26. Please test on a device/simulator running
-26.1+; on an older OS the app cannot install.
+CORE MECHANIC: an alarm can use a "Wake Window" (e.g. 6:30–7:00 AM). Apple's AlarmKit starts it at the window's start — even force-quit, through Silent mode and Focus — then it ramps from gentle to full volume by the hard deadline. If the gentle ramp hasn't woken the user, AlarmKit rings at full volume at the deadline. No motion/sleep sensing. A fixed-time alarm (Wake Window off) works the same way, as one instant.
 
-MICROPHONE: used for two dismiss missions (Clap, Buzzzzz) — only a live volume
-level is read, no audio stored. Separately, "Record Your Own Alarm Sound"
-(Settings → Sound & Haptics, or an alarm's Choose a Sound screen) lets a user
-record up to 15s as their alarm tone, saved to local storage only, never
-uploaded.
+MISSIONS: no snooze. Dismissing requires a mission: Math (1 problem), Clap ×50, Shake ×50, Buzz ×10, Tap ×100, or Random.
 
-CALENDAR: "Calendar Auto-Shift" (on by default, Settings → Smart Features)
-reads only tomorrow's earliest timed event, suggesting a wake-window shift if
-there's under 45 minutes of buffer before the alarm's hard deadline — it never
-edits the calendar.
+EXPECTED BEHAVIOR, NOT BUGS:
+• Tapping Stop on the AlarmKit alert opens the mission rather than silencing the alarm. If the mission is abandoned (app closed or phone locked), AlarmKit re-rings about 90s later.
+• While the mission screen rings, system volume is held at max; the volume buttons can't lower it. The previous volume is restored after dismissal.
 
-To test: add a calendar event for tomorrow starting at/before an enabled
-alarm's hard deadline, then foreground the app between 1:00 PM and 11:59 PM
-local time (once per calendar day — force-quit and relaunch if you already
-opened the app since 1:00 PM today). A notification appears within seconds: "Shift your
-wake window? — Tomorrow's [event] is at [time] — move to [time]–[time]?"
-There's no auto-apply toggle in the UI yet, so this confirm-first notification
-is the only reachable behavior — seeing it is proof enough; no need to tap it
-through.
+MINIMUM OS: iOS 26.1+ — AlarmKit doesn't exist before iOS 26, so the app cannot install on older versions.
 
-RESET DATA: Settings → Danger Zone → Reset Data deletes every alarm, all
-history, custom sounds and settings, cancels every pending alarm/notification,
-and returns the app to its just-installed state (onboarding included).
-Requires typing CONFIRM into a native text-input alert first — there's no
-account to re-authenticate against, so this stands in for one.
+MICROPHONE: used for two dismiss missions (Clap, Buzzzzz) — only a live volume level is read, no audio stored. "Record Your Own Alarm Sound" (Settings → Sound & Haptics) records up to 15s as an alarm tone, saved on-device only, never uploaded. If the app is fully closed when it rings, the lock-screen alert uses a built-in tone (iOS allows only bundled sounds there).
 
-BACKGROUND MODES: "audio" is declared so a ringing alarm's sound keeps looping
-if backgrounded mid-ring (not force-quit), and a near-silent keep-alive session
-runs whenever any alarm is enabled so the app's own JS timers (evening calendar
-check, alarm trigger loop) keep working while backgrounded instead of
-suspended. Nothing network-related.
+CALENDAR: "Calendar Auto-Shift" (on by default) reads only tomorrow's earliest timed event and suggests a wake-window shift if there's under 45 minutes before the alarm's hard deadline. It never edits the calendar.
+To test: add an event for tomorrow starting at/before an enabled alarm's hard deadline, then open the app between 1:00 PM and 11:59 PM local time (runs once per day — force-quit and relaunch if already opened since 1:00 PM). A "Shift your wake window?" notification appears within seconds; no need to tap it.
 
-PRIVACY: no account, no server, no analytics or tracking SDK. No data leaves
-the device except when tapping a Support/Privacy/Terms link (static webpages,
-not an API).
+NOTIFICATIONS: a backup alarm notification, the Bedtime Reminder and the calendar nudge. All local; no push service.
 
-Support: https://cmtania.github.io/buzzbee-docs/support.html
-Privacy Policy: https://cmtania.github.io/buzzbee-docs/privacy.html
-Contact: tania.dev.ph@gmail.com
+RESET DATA: Settings → Danger Zone → Reset Data deletes every alarm, all history, custom sounds and settings, cancels every pending alarm, and returns to onboarding. Typing CONFIRM is required first.
+
+BACKGROUND MODES: "audio" keeps a ringing alarm's sound looping if backgrounded, and a near-silent session keeps the app's timers (calendar check, alarm trigger) running while backgrounded. Nothing network-related.
+
+PRIVACY: no account, server, analytics or tracking SDK. No data leaves the device except when opening a Support/Privacy/Terms link.
+
+Videos: https://drive.google.com/drive/folders/1wEgA_JkiuvTpFZUxrdq3JIe7kU0nqE_c?usp=sharing
+1 — Fixed-time alarm (Wake Window off), phone on Silent, BuzzBee force-quit. It still rings at full volume at the scheduled time, with no interaction in between.
+2 — Wake Window alarm, BuzzBee force-quit. It starts quietly when the window opens and builds to full volume by the deadline.
+3 — The Buzz mission dismisses an alarm by listening for a sustained "bzzzz". The mic only reads a volume level; nothing is recorded.
+4 — A custom sound is recorded with Airplane Mode on throughout. With no network, it's clearly saved on-device only.
+5 — A conflicting event is added for tomorrow and BuzzBee opened between 1:00 PM and 11:59 PM (see status bar clock). A "Shift your wake window?" notification appears within seconds.
+6 — A Bedtime Reminder notification arrives with BuzzBee closed. Tapping it opens the Bedtime breathing screen.
+7 — Settings → Danger Zone → Reset Data, then CONFIRM typed. All alarms, history, sounds and settings are deleted and the app returns to onboarding.
 ```
 
 ## 2. Permissions declared, and why

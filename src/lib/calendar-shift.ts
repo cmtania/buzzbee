@@ -74,6 +74,17 @@ export async function checkTomorrowConflict(alarm: Alarm): Promise<ConflictResul
   };
 }
 
+/**
+ * "window to 6:15 AM–6:45 AM" for a Wake Window alarm; "alarm to 7:15 AM" for a
+ * fixed-time one. A fixed-time alarm stores windowStart === windowEnd, so the
+ * range wording used to read "8:00 AM–8:00 AM".
+ */
+function newTimeText(alarm: Alarm, result: { suggestedStart: string; suggestedEnd: string }): string {
+  return alarm.smartWakeEnabled
+    ? `window to ${formatTime12h(result.suggestedStart)}–${formatTime12h(result.suggestedEnd)}`
+    : `alarm to ${formatTime12h(result.suggestedEnd)}`;
+}
+
 const ranForDate = new Set<string>();
 /** Earliest local hour (24h) the daily check may run: 13 = 1:00 PM. */
 const CHECK_FROM_HOUR = 13;
@@ -115,7 +126,7 @@ export async function runEveningCalendarCheck(now: Date = new Date()): Promise<v
       await Notifications.scheduleNotificationAsync({
         content: {
           title: 'BuzzBee shifted your alarm',
-          body: `Tomorrow's ${result.firstEventTitle} is early, so I moved your window to ${formatTime12h(result.suggestedStart)}–${formatTime12h(result.suggestedEnd)}.`,
+          body: `Tomorrow's ${result.firstEventTitle} is early, so I moved your ${newTimeText(alarm, result)}.`,
           data: { type: 'info' },
         },
         trigger: null,
@@ -127,7 +138,7 @@ export async function runEveningCalendarCheck(now: Date = new Date()): Promise<v
           body: `Tomorrow's ${result.firstEventTitle} is at ${result.firstEventStart.toLocaleTimeString(
             [],
             { hour: 'numeric', minute: '2-digit', hour12: true }
-          )} — move your window to ${formatTime12h(result.suggestedStart)}–${formatTime12h(result.suggestedEnd)}?`,
+          )} — move your ${newTimeText(alarm, result)}?`,
           data: {
             type: 'calendar-nudge',
             alarmId: alarm.id,
