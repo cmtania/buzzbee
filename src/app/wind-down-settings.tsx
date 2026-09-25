@@ -81,9 +81,11 @@ export default function WindDownSettingsScreen() {
             </View>
 
             <View style={styles.footerRow}>
-              <Pressable style={styles.footerBtnWrap} onPress={() => router.push('/wind-down')}>
+              <Pressable style={styles.previewBtnWrap} onPress={() => router.push('/wind-down')}>
                 <GlassCard style={styles.previewBtn} isInteractive>
-                  <Text style={styles.previewText}>Preview Bedtime screen</Text>
+                  <Text style={styles.previewText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                    Preview Bedtime screen
+                  </Text>
                 </GlassCard>
               </Pressable>
               <Pressable style={styles.footerBtnWrap} onPress={() => router.back()}>
@@ -149,6 +151,9 @@ const styles = StyleSheet.create({
   offsetTextActive: { color: Colors.ink },
   footerRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
   footerBtnWrap: { flex: 1 },
+  // Wider than Save: its label is far longer, and an even split wrapped it
+  // onto two lines on small screens.
+  previewBtnWrap: { flex: 2 },
   previewBtn: {
     paddingVertical: 16,
     borderRadius: Radii.lg,

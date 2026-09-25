@@ -1,7 +1,7 @@
 import { AudioSource, setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -52,12 +52,18 @@ export default function SoundHapticsSettingsScreen() {
 
   return (
     <Pressable style={styles.backdrop} onPress={() => router.back()}>
-      <SwipeToDismissSheet onDismiss={() => router.back()} style={styles.sheet}>
+      <SwipeToDismissSheet
+        onDismiss={() => router.back()}
+        style={styles.sheet}
+        // Header-only drag, so a downward drag in the list scrolls instead.
+        header={
+          <>
+            <View style={styles.handle} />
+            <Text style={styles.title}>Sound & Haptics</Text>
+          </>
+        }>
         <SafeAreaView edges={['bottom']} style={styles.safeArea}>
-          <View style={styles.handle} />
-          <Text style={styles.title}>Sound & Haptics</Text>
-
-          <View style={styles.body}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
             <View style={styles.rowCard}>
               <Text style={styles.rowLabel}>Haptics</Text>
               <Toggle value={settings.hapticsEnabled} onChange={(v) => patch({ hapticsEnabled: v })} />
@@ -112,7 +118,7 @@ export default function SoundHapticsSettingsScreen() {
                 ))}
               </View>
             </View>
-          </View>
+          </ScrollView>
         </SafeAreaView>
       </SwipeToDismissSheet>
     </Pressable>
@@ -186,8 +192,13 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: Radii.xl,
     borderTopRightRadius: Radii.xl,
     maxHeight: '88%',
+    overflow: 'hidden',
   },
-  safeArea: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing.lg },
+  // flexShrink: 1 on both is what makes the sheet's maxHeight cap bite: RN
+  // defaults flexShrink to 0, so the sound list overflowed past the sheet and
+  // the lower built-in sounds were unreachable on a small screen.
+  safeArea: { flexShrink: 1 },
+  scroll: { flexShrink: 1 },
   handle: {
     width: 40,
     height: 5,
@@ -198,7 +209,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: { fontFamily: Fonts.extraBold, fontSize: 19.5, color: Colors.ink, textAlign: 'center' },
-  body: { paddingTop: Spacing.xl, gap: Spacing.lg, paddingBottom: Spacing.md },
+  body: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.xl, gap: Spacing.lg, paddingBottom: Spacing.xl },
   rowCard: {
     flexDirection: 'row',
     alignItems: 'center',
