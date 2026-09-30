@@ -231,10 +231,40 @@ export const CONFIRMATION_ALARM_DELAY_SEC = 90;
  * the Lock Screen/Dynamic Island and never finish the mission, defeating the
  * whole point.
  */
-export async function armConfirmationAlarm(alarm: Alarm, delaySeconds: number): Promise<void> {
+// Every arm and disarm of the confirmation alarm runs one at a time, in call
+// order. Arming is several awaited steps (cancel the stored one, schedule a
+// new one, store its id), and two overlapping arms — the AlarmKit launch path
+// and the ringing screen both arm on the same tap — each saw nothing to
+// cancel, each scheduled an alarm, and only the second id got stored. The
+// first became an orphan no disarm could reach: it rang ~90s after launch
+// even when the mission had long since been finished.
+let confirmQueue: Promise<void> = Promise.resolve();
+function enqueueConfirm(op: () => Promise<void>): Promise<void> {
+  const run = confirmQueue.then(op, op);
+  confirmQueue = run.catch(() => {});
+  return run;
+}
+
+export function armConfirmationAlarm(alarm: Alarm, delaySeconds: number): Promise<void> {
+  return enqueueConfirm(() => armConfirmationAlarmNow(alarm, delaySeconds));
+}
+
+export function disarmConfirmationAlarm(alarmId: string): Promise<void> {
+  return enqueueConfirm(() => disarmConfirmationAlarmNow(alarmId));
+}
+
+async function armConfirmationAlarmNow(alarm: Alarm, delaySeconds: number): Promise<void> {
   const mod = loadModule();
   if (!mod || !configured) return;
-  await disarmConfirmationAlarm(alarm.id);
+  // The internal disarm — calling the queued one from inside the queue would
+  // wait on itself forever.
+  await disarmConfirmationAlarmNow(alarm.id);
+
+  // Second safety layer: never arm for an alarm already dismissed today. An arm
+  // that was queued before the dismissal (or any future caller that forgets
+  // to check) can't bring back a ring the user already completed.
+  const todayEvent = await getWakeEventToday(alarm.id);
+  if (todayEvent && isoMatchesTime(todayEvent.scheduledDeadline, alarm.windowEnd)) return;
 
   const authorized = await ensureAlarmKitAuthorization();
   if (!authorized) return;
@@ -256,7 +286,7 @@ export async function armConfirmationAlarm(alarm: Alarm, delaySeconds: number): 
   }
 }
 
-export async function disarmConfirmationAlarm(alarmId: string): Promise<void> {
+async function disarmConfirmationAlarmNow(alarmId: string): Promise<void> {
   const mod = loadModule();
   if (!mod || !configured) return;
   const confirmAlarmKitId = await getConfirmAlarmKitId(alarmId);
