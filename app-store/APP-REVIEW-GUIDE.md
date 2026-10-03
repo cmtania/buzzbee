@@ -53,10 +53,12 @@ Wakes you at the right moment, not just the loud one.
 ## 1. App Review Information — paste-ready notes
 
 Paste this into App Store Connect → App Review Information → Notes. The field caps at
-4,000 characters (line breaks count as one); this version is 3,958, so keep edits small.
+4,000 characters (line breaks count as one); this version is 3,998, so keep edits small.
 
 ```
 BuzzBee is a single-user app — no account, login, or server. Every feature is available right after install.
+
+NO WIDGETS: alerts come from AlarmKit.
 
 QUICK TEST: create an alarm 2 minutes ahead. To try any mission without waiting for an alarm, open Choose Mission while editing an alarm and tap Preview — a silent, inert copy of the ringing screen.
 

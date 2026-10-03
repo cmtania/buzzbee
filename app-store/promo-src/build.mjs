@@ -13,7 +13,7 @@
 // treats marketing screenshots as metadata (guideline 2.3).
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -332,6 +332,41 @@ const slides = {
     ),
 };
 
+// ---- real-app screenshots with a caption ---------------------------------------
+// App Review rejected v1.0 under 2.3.3: most screenshots must show the actual
+// app in use, not marketing art. These wrap a REAL device screenshot (from
+// ../screenshots-raw/, captured on an iPhone — 1320x2868 on a 6.9" model) under
+// a short caption. The screenshot itself is never altered. Output goes to
+// ../screenshots-6.9/ — upload these as the main set; at most one or two of the
+// promo slides above should sit alongside them.
+const rawDir = resolve(here, '..', 'screenshots-raw');
+const shotsOutDir = resolve(here, '..', 'screenshots-6.9');
+const SHOTS = [
+  { file: 'get-started.png', eyebrow: 'Smart loud alarm', title: 'Meet BuzzBee.' },
+  { file: 'home.png', eyebrow: 'Wake Window', title: 'Starts gentle.<br>Never late.' },
+  { file: 'ringing.png', eyebrow: 'No snooze', title: 'Finish a mission<br>to turn it off.' },
+  { file: 'choose-mission.png', eyebrow: 'Six missions', title: 'Math, clap, shake,<br>buzz, tap or random.' },
+  { file: 'add-alarm.png', eyebrow: 'Your way', title: 'Name it. Pick a sound.<br>Pick a mission.' },
+  { file: 'choose-sound.png', eyebrow: 'Sounds', title: 'Built-in tones —<br>or your own voice.' },
+  { file: 'record-sound.png', eyebrow: 'Make it yours', title: 'Record your own<br>alarm sound.' },
+  { file: 'calendar-autoshift.png', eyebrow: 'Calendar Auto-Shift', title: 'Early meeting?<br>Get a heads-up.' },
+  { file: 'bedtime.png', eyebrow: 'Bedtime Reminder', title: 'Wind down<br>before bed.' },
+  { file: 'history.png', eyebrow: 'Wake Calendar', title: 'See every morning<br>you got up.' },
+];
+
+function shotPage(src, eyebrow, title) {
+  return page(
+    `<div class="cap"><div class="eyebrow">${eyebrow}</div><div class="headline">${title}</div></div>
+     <img class="shot" src="${pathToFileURL(src).href}">`,
+    `.cap { position: absolute; top: 150px; left: 0; right: 0; text-align: center; padding: 0 60px; }
+     .cap .headline { font-size: 92px; margin-top: 22px; }
+     .shot { position: absolute; left: 50%; bottom: -60px; transform: translateX(-50%);
+             width: 1080px; border-radius: 104px; border: 14px solid ${C.ink};
+             box-shadow: 0 40px 100px rgba(43,36,32,0.25); }
+     .footer { display: none; }`,
+  );
+}
+
 // ---- render -------------------------------------------------------------------
 const chrome = CHROME_CANDIDATES.find((p) => existsSync(p));
 if (!chrome) throw new Error('No Chrome/Edge found — set CHROME_PATH.');
@@ -339,12 +374,27 @@ mkdirSync(tmpDir, { recursive: true });
 mkdirSync(outDir, { recursive: true });
 
 const wanted = process.argv.slice(2);
-const names = Object.keys(slides).filter((n) => !wanted.length || wanted.some((w) => n.startsWith(w)));
+const jobs = Object.keys(slides).map((name) => ({ name, dir: outDir, html: () => slides[name]() }));
+const missing = [];
+// Case-insensitive, and tolerant of a doubled extension ("ringing.png.PNG"),
+// since files AirDropped or exported from Photos often arrive that way.
+const rawFiles = existsSync(rawDir) ? readdirSync(rawDir) : [];
+const findRaw = (want) => rawFiles.find((f) => f.toLowerCase().replace(/(.png)+$/, '.png') === want);
+for (const [i, s] of SHOTS.entries()) {
+  const hit = findRaw(s.file);
+  const src = hit ? join(rawDir, hit) : join(rawDir, s.file);
+  // Numbered in upload order, so sorting the folder by name gives the right order.
+  const name = `${String(i + 1).padStart(2, '0')}-${s.file.replace('.png', '')}`;
+  if (existsSync(src)) jobs.push({ name, dir: shotsOutDir, html: () => shotPage(src, s.eyebrow, s.title) });
+  else missing.push(s.file);
+}
+if (jobs.some((j) => j.dir === shotsOutDir)) mkdirSync(shotsOutDir, { recursive: true });
 
-for (const name of names) {
+for (const job of jobs.filter((j) => !wanted.length || wanted.some((w) => j.name.startsWith(w)))) {
+  const { name } = job;
   const html = join(tmpDir, `${name}.html`);
-  writeFileSync(html, slides[name]());
-  const png = join(outDir, `${name}.png`);
+  writeFileSync(html, job.html());
+  const png = join(job.dir, `${name}.png`);
   execFileSync(chrome, [
     '--headless=new',
     '--disable-gpu',
@@ -358,4 +408,8 @@ for (const name of names) {
     pathToFileURL(html).href,
   ], { stdio: 'ignore' });
   console.log('wrote', png);
+}
+
+if (missing.length) {
+  console.log(`\nNo real screenshot yet in app-store/screenshots-raw/ for: ${missing.join(', ')}`);
 }

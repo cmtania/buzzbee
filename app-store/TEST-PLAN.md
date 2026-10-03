@@ -64,6 +64,18 @@ of these tests.
       from its Home Screen icon — same result: bee splash, then the mission.
 - [ ] With **no** alarm due, switch away from BuzzBee and back a few times —
       no bee splash; it returns straight to where you were.
+- [ ] **Slept-through alarm comes back.** Fixed-time alarm, app force-quit,
+      phone locked. Don't touch it when it rings. After iOS stops the first
+      ring, it must ring again ~10, ~20 and ~30 minutes after the alarm time
+      ("still asleep? Time to get up!"). Tap one — the mission opens at full
+      volume, and no further re-rings come after you finish it.
+- [ ] Same with a Wake Window alarm: if you ignore the window, it rings at
+      full volume at the hard deadline, then 10 and 20 minutes later.
+- [ ] **No ring after a finished mission.** Fixed-time alarm, app in the
+      background or locked. When the AlarmKit alert rings, tap it, finish the
+      Tap mission, see Mission Complete, then force-quit BuzzBee. Wait at least
+      5 minutes — nothing must ring. (Before the fix, a duplicate safety alarm
+      armed on the same tap rang ~90s after launch.) Repeat twice.
 - [ ] Let an alarm ring and sit on the mission screen **without solving it for
       5+ minutes**, phone unlocked and on screen. No AlarmKit alert should pop
       up over it, and the sound must keep playing the whole time.
@@ -137,6 +149,20 @@ actually dismisses on completion:
       it navigated back).
 - [ ] Preview a mission while the Alarm Name field has text in it — the name
       appears on the preview's ringing screen, live, matching what's typed.
+
+## 4c. Clap & Buzz calibration
+
+- [ ] Settings → Sound & Haptics → Calibrate Clap: Start, stay quiet for 2s,
+      clap 3 times — the counter reaches 3 and shows "Got it!". Save.
+      The row now reads "Calibrated to you".
+- [ ] Calibrate Buzz the same way with one long "bzzzz".
+- [ ] **Save & try it** opens the mission preview; your normal clap/buzz is
+      counted, and talking quietly or room noise is not.
+- [ ] Too quiet (barely clap) → "Let's try again" with a reason, nothing saved.
+- [ ] Hold a calibrated row → Reset → back to "Using default sensitivity".
+- [ ] Settings → Reset Data also clears both calibrations.
+- [ ] A real ringing Clap/Buzz alarm uses the calibrated level (try one with
+      soft claps that only count after calibrating).
 
 ## 5. Record Your Own Alarm Sound
 
