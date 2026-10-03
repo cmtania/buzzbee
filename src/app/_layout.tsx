@@ -22,7 +22,7 @@ import { useEveningCalendarCheck } from '@/hooks/use-evening-calendar-check';
 import { useWakeWindowMonitor } from '@/hooks/use-wake-window-monitor';
 import { AlarmDraftProvider, useAlarmDraft } from '@/lib/alarm-draft-context';
 import { AlarmLaunch as PendingAlarmLaunch, resolveAlarmKitLaunch } from '@/lib/alarm-launch';
-import { checkAlarmKitLaunch, configureAlarmKit } from '@/lib/alarmkit';
+import { checkAlarmKitLaunch, configureAlarmKit, refreshFollowUps } from '@/lib/alarmkit';
 import { isoMatchesTime } from '@/lib/alarm-utils';
 import { getAlarm, getSettings, getWakeEventToday } from '@/lib/db';
 import { rescheduleWindDownNotification } from '@/lib/wind-down-scheduling';
@@ -133,6 +133,7 @@ function AppShell({
 
   useEffect(() => {
     getSettings().then(rescheduleWindDownNotification);
+    refreshFollowUps().catch(() => {});
   }, []);
 
   useEffect(() => {

@@ -9,6 +9,7 @@ import { Platform } from 'react-native';
 import { endOfDay, isoMatchesTime, nextOccurrence } from './alarm-utils';
 import {
   getAlarmKitId,
+  getAlarms,
   getConfirmAlarmKitId,
   getWakeEventToday,
   setAlarmKitId,
@@ -16,6 +17,7 @@ import {
 } from './db';
 import { isCustomSoundUri, isSoundName, NOTIFICATION_SOUND_FILES, SoundName } from './sounds';
 import { Alarm } from './types';
+import { escalationDurationMs } from './wake-window-engine';
 
 // AlarmKit's soundName docs say "must exist in app bundle" — reusing the
 // same PCM .wav files already bundled for the notification fallback (see
@@ -164,6 +166,14 @@ export async function scheduleAlarmKitAlarm(alarm: Alarm): Promise<void> {
   if (!ok) {
     console.warn(`[AlarmKit] Failed to schedule alarm ${alarm.id} — falling back to notification only.`);
   }
+
+  // The occurrence just scheduled (same day logic as above), for its re-rings.
+  const occurrence = nextOccurrence(
+    triggerTime,
+    nativeWeekdays,
+    alreadyRangAtThisTime ? endOfDay(new Date()) : undefined
+  );
+  await armFollowUps(alarm, occurrence);
 }
 
 export async function cancelAlarmKitAlarm(alarmId: string): Promise<void> {
@@ -270,11 +280,12 @@ async function armConfirmationAlarmNow(alarm: Alarm, delaySeconds: number): Prom
   if (!authorized) return;
 
   const confirmAlarmKitId = mod.generateUUID();
-  await setConfirmAlarmKitId(alarm.id, confirmAlarmKitId);
+  const fireAt = new Date(Date.now() + delaySeconds * 1000);
+  await setConfirmAlarmKitId(alarm.id, encodeSlot([confirmAlarmKitId], fireAt));
 
   const ok = await mod.scheduleAlarm({
     id: confirmAlarmKitId,
-    date: new Date(Date.now() + delaySeconds * 1000),
+    date: fireAt,
     title: "BuzzBee — you're not up yet!",
     soundName: alarmKitSoundName(alarm.sound),
     launchAppOnDismiss: true,
@@ -289,9 +300,97 @@ async function armConfirmationAlarmNow(alarm: Alarm, delaySeconds: number): Prom
 async function disarmConfirmationAlarmNow(alarmId: string): Promise<void> {
   const mod = loadModule();
   if (!mod || !configured) return;
-  const confirmAlarmKitId = await getConfirmAlarmKitId(alarmId);
-  if (confirmAlarmKitId) {
-    await mod.cancelAlarm(confirmAlarmKitId).catch(() => {});
+  const { ids } = decodeSlot(await getConfirmAlarmKitId(alarmId));
+  if (ids.length) {
+    await Promise.all(ids.map((id) => mod.cancelAlarm(id).catch(() => {})));
     await setConfirmAlarmKitId(alarmId, null);
   }
+}
+
+// ---- follow-up re-rings for a slept-through alarm -------------------------
+//
+// iOS decides how long an AlarmKit alert keeps sounding; after that the sound
+// stops but the alert stays on screen. Until the user opens BuzzBee nothing
+// else would ring — so someone who slept through the first ring woke up to a
+// silent alert half an hour later. These one-shot AlarmKit alarms, armed in
+// advance alongside the main one, bring it back. They live in the same slot as
+// the confirmation alarm, so opening the mission (which arms the 90s
+// confirmation) or finishing it (which disarms) cancels them automatically.
+//
+// Fixed-time: 10, 20 and 30 minutes after the alarm. Wake Window: at the hard
+// deadline and 10 and 20 minutes after it — which also gives the deadline its
+// full-volume backstop when the app was force-quit and the gentle in-app ramp
+// never started.
+const FOLLOW_UP_MINUTES = { fixed: [10, 20, 30], window: [0, 10, 20] };
+const STALE_AFTER_MS = 2 * 60 * 60 * 1000;
+
+// The slot stores "id1,id2,…@<ISO time of the last one>". A bare id is the
+// older single-confirmation format.
+function encodeSlot(ids: string[], lastFire: Date): string {
+  return `${ids.join(',')}@${lastFire.toISOString()}`;
+}
+function decodeSlot(raw: string | null): { ids: string[]; lastFire: number } {
+  if (!raw) return { ids: [], lastFire: 0 };
+  const [idPart, iso] = raw.split('@');
+  const lastFire = iso ? Date.parse(iso) : 0;
+  return { ids: idPart.split(',').filter(Boolean), lastFire: Number.isNaN(lastFire) ? 0 : lastFire };
+}
+
+function armFollowUps(alarm: Alarm, occurrence: Date): Promise<void> {
+  return enqueueConfirm(() => armFollowUpsNow(alarm, occurrence));
+}
+
+async function armFollowUpsNow(alarm: Alarm, occurrence: Date): Promise<void> {
+  const mod = loadModule();
+  if (!mod || !configured) return;
+  await disarmConfirmationAlarmNow(alarm.id);
+  if (!alarm.enabled) return;
+  const authorized = await ensureAlarmKitAuthorization();
+  if (!authorized) return;
+
+  const base = alarm.smartWakeEnabled
+    ? new Date(occurrence.getTime() + escalationDurationMs(alarm))
+    : occurrence;
+  const offsets = alarm.smartWakeEnabled ? FOLLOW_UP_MINUTES.window : FOLLOW_UP_MINUTES.fixed;
+  const dates = offsets
+    .map((min) => new Date(base.getTime() + min * 60000))
+    .filter((d) => d.getTime() > Date.now() + 30000);
+
+  const ids: string[] = [];
+  for (const date of dates) {
+    const id = mod.generateUUID();
+    const ok = await mod.scheduleAlarm({
+      id,
+      date,
+      title: 'BuzzBee — still asleep? Time to get up!',
+      soundName: alarmKitSoundName(alarm.sound),
+      launchAppOnDismiss: true,
+      dismissPayload: alarm.id,
+    });
+    if (ok) ids.push(id);
+  }
+  if (ids.length) await setConfirmAlarmKitId(alarm.id, encodeSlot(ids, dates[dates.length - 1]));
+}
+
+/**
+ * Called on app start. A repeating alarm that rang and was ignored all day
+ * never got its next follow-ups (they're re-armed when a mission is finished),
+ * so re-arm any whose slot is empty or long past. Skips anything recent —
+ * that includes a confirmation alarm armed for a ring in progress.
+ */
+export function refreshFollowUps(): Promise<void> {
+  return enqueueConfirm(async () => {
+    const mod = loadModule();
+    if (!mod || !configured) return;
+    for (const alarm of await getAlarms()) {
+      if (!alarm.enabled || alarm.repeatDays.length === 0) continue;
+      const { ids, lastFire } = decodeSlot(await getConfirmAlarmKitId(alarm.id));
+      if (ids.length && lastFire > Date.now() - STALE_AFTER_MS) continue;
+      const triggerTime = alarm.smartWakeEnabled ? alarm.windowStart : alarm.windowEnd;
+      const todayEvent = await getWakeEventToday(alarm.id);
+      const alreadyRang = !!todayEvent && isoMatchesTime(todayEvent.scheduledDeadline, triggerTime);
+      const occurrence = nextOccurrence(triggerTime, alarm.repeatDays, alreadyRang ? endOfDay(new Date()) : undefined);
+      await armFollowUpsNow(alarm, occurrence);
+    }
+  });
 }
