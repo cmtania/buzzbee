@@ -236,6 +236,7 @@ function AppShell({
         <Stack.Screen name="choose-mission" options={{ presentation: 'transparentModal' }} />
         <Stack.Screen name="choose-sound" options={{ presentation: 'transparentModal' }} />
         <Stack.Screen name="record-sound" options={{ presentation: 'transparentModal' }} />
+        <Stack.Screen name="calibrate" options={{ presentation: 'transparentModal' }} />
         <Stack.Screen name="wind-down-settings" options={{ presentation: 'transparentModal' }} />
         <Stack.Screen name="notifications-settings" options={{ presentation: 'transparentModal' }} />
         <Stack.Screen name="sound-haptics-settings" options={{ presentation: 'transparentModal' }} />

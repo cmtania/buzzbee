@@ -10,6 +10,7 @@ import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { AlarmSoundLoop, AlarmVibration, DeviceVolumeBoost } from '@/components/alarm-ring-effects';
 import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
 import { useMicMetering } from '@/hooks/use-mic-metering';
+import { useMicThresholds } from '@/lib/mic-calibration';
 import { AudioWaveform, Check, Delete, Eye, X } from 'lucide-react-native';
 import { confirmationDelaySec } from '@/lib/alarm-launch';
 import { armConfirmationAlarm, disarmConfirmationAlarm } from '@/lib/alarmkit';
@@ -554,15 +555,16 @@ function ClapMission({ onComplete, onActivity }: { onComplete: () => void } & Mi
   const { metering, error } = useMicMetering();
   const [count, setCount] = useState(0);
   const remaining = CLAP_TARGET - count;
+  // The user's own calibrated level if they ran Calibrate Clap, else -20 dB.
+  const { clap: clapThresholdDb } = useMicThresholds();
   const wasAbove = useRef(false);
   const lastCountAt = useRef(0);
 
   useEffect(() => {
     if (metering === null) return;
-    const THRESHOLD_DB = -20;
     const DEBOUNCE_MS = 250;
     const now = Date.now();
-    const isAbove = metering > THRESHOLD_DB;
+    const isAbove = metering > clapThresholdDb;
     if (isAbove && !wasAbove.current && now - lastCountAt.current > DEBOUNCE_MS) {
       lastCountAt.current = now;
       onActivity();
@@ -573,7 +575,7 @@ function ClapMission({ onComplete, onActivity }: { onComplete: () => void } & Mi
       });
     }
     wasAbove.current = isAbove;
-  }, [metering, onComplete, onActivity]);
+  }, [metering, onComplete, onActivity, clapThresholdDb]);
 
   if (error) return <MicPermissionFallback mission="clap" onDismiss={onComplete} />;
 
@@ -591,17 +593,18 @@ function BuzzMission({ onComplete, onActivity }: { onComplete: () => void } & Mi
   const { metering, error } = useMicMetering();
   const [count, setCount] = useState(0);
   const remaining = BUZZ_TARGET - count;
+  // The user's own calibrated level if they ran Calibrate Buzz, else -25 dB.
+  const { buzz: buzzThresholdDb } = useMicThresholds();
   const aboveSince = useRef<number | null>(null);
   const cooldownUntil = useRef(0);
   const countedThisBurst = useRef(false);
 
   useEffect(() => {
     if (metering === null) return;
-    const THRESHOLD_DB = -25;
     const MIN_SUSTAIN_MS = 700;
     const COOLDOWN_MS = 500;
     const now = Date.now();
-    const isAbove = metering > THRESHOLD_DB;
+    const isAbove = metering > buzzThresholdDb;
 
     if (isAbove) {
       if (aboveSince.current === null) aboveSince.current = now;
@@ -623,7 +626,7 @@ function BuzzMission({ onComplete, onActivity }: { onComplete: () => void } & Mi
       aboveSince.current = null;
       countedThisBurst.current = false;
     }
-  }, [metering, onComplete, onActivity]);
+  }, [metering, onComplete, onActivity, buzzThresholdDb]);
 
   if (error) return <MicPermissionFallback mission="buzz" onDismiss={onComplete} />;
 

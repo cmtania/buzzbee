@@ -11,6 +11,7 @@ import { Colors, Fonts, Radii, Spacing } from "@/constants/theme";
 import { formatClock } from "@/lib/alarm-utils";
 import { clearAllAlarmKitAlarms } from "@/lib/alarmkit";
 import { getAlarms, getSettings, resetAllData, updateSettings } from "@/lib/db";
+import { resetCalibration } from "@/lib/mic-calibration";
 import { cancelAlarmNotification } from "@/lib/scheduling";
 import { AppSettings } from "@/lib/types";
 import { rescheduleWindDownNotification } from "@/lib/wind-down-scheduling";
@@ -50,6 +51,7 @@ export default function SettingsScreen() {
     clearAllAlarmKitAlarms();
     await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
     await resetAllData();
+    await resetCalibration();
     router.replace("/onboarding/welcome");
   }
 

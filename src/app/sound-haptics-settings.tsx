@@ -10,20 +10,25 @@ import { Toggle } from '@/components/toggle';
 import { Colors, Fonts, Radii, Shadows, Spacing } from '@/constants/theme';
 import { getCustomSounds, removeCustomSound } from '@/lib/custom-sounds';
 import { getSettings, updateSettings } from '@/lib/db';
+import { isCalibrated, MicMission, resetCalibration } from '@/lib/mic-calibration';
+import { MissionIcon } from '@/lib/mission-meta';
 import { safeAudioCall, SOUND_FILES, SOUND_NAMES } from '@/lib/sounds';
 import { AppSettings, CustomSound } from '@/lib/types';
-import { Check, Mic, Trash } from 'lucide-react-native';
+import { Check, ChevronRight, Mic, Trash } from 'lucide-react-native';
 
 export default function SoundHapticsSettingsScreen() {
   const router = useRouter();
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [customSounds, setCustomSounds] = useState<CustomSound[]>([]);
+  const [calibrated, setCalibrated] = useState<Record<MicMission, boolean>>({ clap: false, buzz: false });
 
   useFocusEffect(
     useCallback(() => {
       getSettings().then(setSettings);
       getCustomSounds().then(setCustomSounds);
+      // Re-read on focus: coming back from the Calibrate screen updates it.
+      isCalibrated().then(setCalibrated);
       return () => setPreviewing(null);
     }, [])
   );
@@ -117,6 +122,45 @@ export default function SoundHapticsSettingsScreen() {
                   />
                 ))}
               </View>
+            </View>
+
+            <View>
+              <Text style={styles.sectionLabel}>Clap & Buzz Detection</Text>
+              <Text style={styles.sectionHint}>
+                Missions not hearing you, or counting room noise? Calibrate once and they’ll listen for your own clap and
+                buzz. Only a volume level is measured — nothing is recorded.
+              </Text>
+              {(['clap', 'buzz'] as const).map((mission) => (
+                <Pressable
+                  key={mission}
+                  style={styles.calibrateRow}
+                  onPress={() => router.push({ pathname: '/calibrate', params: { mission } })}
+                  onLongPress={() =>
+                    calibrated[mission] &&
+                    Alert.alert('Reset calibration?', 'This mission will go back to the default sensitivity.', [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Reset',
+                        style: 'destructive',
+                        onPress: async () => {
+                          await resetCalibration(mission);
+                          setCalibrated(await isCalibrated());
+                        },
+                      },
+                    ])
+                  }>
+                  <View style={styles.recordIconWrap}>
+                    <MissionIcon method={mission} size={18.5} color={Colors.accentDeep} />
+                  </View>
+                  <View style={styles.calibrateMain}>
+                    <Text style={styles.rowLabel}>{mission === 'clap' ? 'Calibrate Clap' : 'Calibrate Buzz'}</Text>
+                    <Text style={styles.calibrateStatus}>
+                      {calibrated[mission] ? 'Calibrated to you · hold to reset' : 'Using default sensitivity'}
+                    </Text>
+                  </View>
+                  <ChevronRight size={17.5} color={Colors.inkFaint} />
+                </Pressable>
+              ))}
             </View>
           </ScrollView>
         </SafeAreaView>
@@ -220,6 +264,17 @@ const styles = StyleSheet.create({
     ...Shadows.card,
   },
   rowLabel: { fontFamily: Fonts.bold, fontSize: 17.5, color: Colors.ink },
+  calibrateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: Colors.cardBg,
+    borderRadius: Radii.lg,
+    padding: 14,
+    marginTop: 10,
+  },
+  calibrateMain: { flex: 1, minWidth: 0 },
+  calibrateStatus: { fontFamily: Fonts.semiBold, fontSize: 14, color: Colors.inkFaint, marginTop: 2 },
   hint: { fontSize: 14, color: Colors.inkFaint, marginTop: -8, lineHeight: 16, fontFamily: Fonts.medium },
   sectionLabel: {
     fontFamily: Fonts.bold,
