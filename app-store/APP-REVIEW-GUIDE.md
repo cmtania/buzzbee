@@ -52,47 +52,49 @@ Wakes you at the right moment, not just the loud one.
 
 ## 1. App Review Information — paste-ready notes
 
-Paste this into App Store Connect → App Review Information → Notes. The field caps at
-4,000 characters (line breaks count as one); this version is 3,998, so keep edits small.
+Paste this into App Store Connect → App Review Information → Notes (version 1.0.1).
+The field caps at 4,000 characters (line breaks count as one); this version is 3,838.
 
 ```
-BuzzBee is a single-user app — no account, login, or server. Every feature is available right after install.
+BuzzBee is a single-user app — no account, login, or server. Every feature is available right after install. No widgets: alarm alerts come from AlarmKit.
 
-NO WIDGETS: alerts come from AlarmKit.
+NEW IN 1.0.1:
+• Clap & Buzz calibration (Settings → Sound & Haptics → Calibrate Clap / Calibrate Buzz): BuzzBee listens to the room for 2s, then to 3 claps or one long "bzzzz", and saves a loudness threshold so those missions hear the user, not room noise. Only that one number per mission is stored — no audio. Hold a row to reset it.
+• A slept-through alarm now rings again (see below).
+• Fixed: an alarm could ring again after its mission was finished.
 
-QUICK TEST: create an alarm 2 minutes ahead. To try any mission without waiting for an alarm, open Choose Mission while editing an alarm and tap Preview — a silent, inert copy of the ringing screen.
+QUICK TEST: create an alarm 2 minutes ahead. To try any mission without waiting, open Choose Mission while editing an alarm and tap Preview — a silent copy of the ringing screen.
 
-CORE MECHANIC: an alarm can use a "Wake Window" (e.g. 6:30–7:00 AM). Apple's AlarmKit starts it at the window's start — even force-quit, through Silent mode and Focus — then it ramps from gentle to full volume by the hard deadline. If the gentle ramp hasn't woken the user, AlarmKit rings at full volume at the deadline. No motion/sleep sensing. A fixed-time alarm (Wake Window off) works the same way, as one instant.
+CORE MECHANIC: a "Wake Window" alarm (e.g. 6:30–7:00 AM) is started by Apple's AlarmKit at the window's start — even force-quit, through Silent mode and Focus — and ramps from gentle to full volume by the deadline. A fixed-time alarm (Wake Window off) rings at one time. No motion/sleep sensing.
 
-MISSIONS: no snooze. Dismissing requires a mission: Math (1 problem), Clap ×50, Shake ×50, Buzz ×10, Tap ×100, or Random.
+MISSIONS: no snooze. Dismissing requires Math (1 problem), Clap ×50, Shake ×50, Buzz ×10, Tap ×100, or Random.
 
 EXPECTED BEHAVIOR, NOT BUGS:
-• Tapping Stop on the AlarmKit alert opens the mission rather than silencing the alarm. If the mission is abandoned (app closed or phone locked), AlarmKit re-rings about 90s later.
-• While the mission screen rings, system volume is held at max; the volume buttons can't lower it. The previous volume is restored after dismissal.
+• Stop on the AlarmKit alert opens the mission instead of silencing the alarm. If the mission is abandoned (app closed or phone locked), it re-rings ~90s later.
+• If an alarm is ignored entirely, it rings again 10, 20 and 30 min later (Wake Window: at the deadline, then +10 and +20 min). Finishing the mission cancels these.
+• While the mission screen rings, volume is held at max; the volume buttons can't lower it. It's restored after dismissal.
 
-MINIMUM OS: iOS 26.1+ — AlarmKit doesn't exist before iOS 26, so the app cannot install on older versions.
+MINIMUM OS: iOS 26.1+ (AlarmKit doesn't exist before iOS 26).
 
-MICROPHONE: used for two dismiss missions (Clap, Buzzzzz) — only a live volume level is read, no audio stored. "Record Your Own Alarm Sound" (Settings → Sound & Haptics) records up to 15s as an alarm tone, saved on-device only, never uploaded. If the app is fully closed when it rings, the lock-screen alert uses a built-in tone (iOS allows only bundled sounds there).
+MICROPHONE: Clap and Buzz missions, and their calibration, read only a live volume level — no audio is stored. "Record Your Own Alarm Sound" (Settings → Sound & Haptics) records up to 15s as an alarm tone, saved on-device only, never uploaded. With the app fully closed, the lock-screen alert plays a built-in tone (iOS allows only bundled sounds there).
 
-CALENDAR: "Calendar Auto-Shift" (on by default) reads only tomorrow's earliest timed event and suggests a wake-window shift if there's under 45 minutes before the alarm's hard deadline. It never edits the calendar.
-To test: add an event for tomorrow starting at/before an enabled alarm's hard deadline, then open the app between 1:00 PM and 11:59 PM local time (runs once per day — force-quit and relaunch if already opened since 1:00 PM). A "Shift your wake window?" notification appears within seconds; no need to tap it.
+CALENDAR: "Calendar Auto-Shift" (on by default) reads only tomorrow's earliest timed event and suggests a wake-window shift if there's under 45 min before the deadline. It never edits the calendar. To test: add an event for tomorrow at/before an enabled alarm's deadline, then open the app between 1:00 PM and 11:59 PM (once per day — force-quit and relaunch if already opened since 1:00 PM). A "Shift your wake window?" notification appears within seconds.
 
-NOTIFICATIONS: a backup alarm notification, the Bedtime Reminder and the calendar nudge. All local; no push service.
+RESET DATA: Settings → Danger Zone → Reset Data (type CONFIRM) deletes all alarms, history, custom sounds, calibration and settings, cancels pending alarms, and returns to onboarding.
 
-RESET DATA: Settings → Danger Zone → Reset Data deletes every alarm, all history, custom sounds and settings, cancels every pending alarm, and returns to onboarding. Typing CONFIRM is required first.
+BACKGROUND MODES: "audio" keeps a ringing alarm's sound looping in the background, and a near-silent session keeps the app's alarm and calendar timers running. Nothing network-related. Notifications are all local.
 
-BACKGROUND MODES: "audio" keeps a ringing alarm's sound looping if backgrounded, and a near-silent session keeps the app's timers (calendar check, alarm trigger) running while backgrounded. Nothing network-related.
-
-PRIVACY: no account, server, analytics or tracking SDK. No data leaves the device except when opening a Support/Privacy/Terms link.
+PRIVACY: no account, server, analytics or tracking SDK. Nothing leaves the device except opening a Support/Privacy/Terms link.
 
 Videos: https://drive.google.com/drive/folders/1wEgA_JkiuvTpFZUxrdq3JIe7kU0nqE_c?usp=sharing
-1 — Fixed-time alarm (Wake Window off), phone on Silent, BuzzBee force-quit. It still rings at full volume at the scheduled time, with no interaction in between.
-2 — Wake Window alarm, BuzzBee force-quit. It starts quietly when the window opens and builds to full volume by the deadline.
-3 — The Buzz mission dismisses an alarm by listening for a sustained "bzzzz". The mic only reads a volume level; nothing is recorded.
-4 — A custom sound is recorded with Airplane Mode on throughout. With no network, it's clearly saved on-device only.
-5 — A conflicting event is added for tomorrow and BuzzBee opened between 1:00 PM and 11:59 PM (see status bar clock). A "Shift your wake window?" notification appears within seconds.
-6 — A Bedtime Reminder notification arrives with BuzzBee closed. Tapping it opens the Bedtime breathing screen.
-7 — Settings → Danger Zone → Reset Data, then CONFIRM typed. All alarms, history, sounds and settings are deleted and the app returns to onboarding.
+1 — Fixed-time alarm, phone on Silent, app force-quit: still rings at full volume.
+2 — Wake Window alarm, app force-quit: starts quietly, builds to full volume by the deadline.
+3 — Buzz mission: the mic reads a volume level only; nothing is recorded.
+4 — A custom sound recorded in Airplane Mode: saved on-device only.
+5 — Calendar Auto-Shift: a conflicting event, app opened after 1:00 PM, notification appears.
+6 — Bedtime Reminder notification opens the breathing screen.
+7 — Reset Data with CONFIRM returns the app to onboarding.
+8 — New in 1.0.1, Clap & Buzz calibration: https://drive.google.com/file/d/1DIgTJT52FonqYdIqU9kFrHumJWfjJvHD/view?usp=sharing
 ```
 
 ## 2. Permissions declared, and why
