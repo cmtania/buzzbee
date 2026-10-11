@@ -43,7 +43,7 @@ A real calendar in History — tap any day to see whether you finished the missi
 BUILT TO BE PRIVATE
 • No account, no sign-in, no server — everything stays on your device
 • No ads, no analytics, no tracking SDKs of any kind
-• The microphone only ever reads a volume level, except for sounds you deliberately record yourself
+• The microphone never records, except for sounds you deliberately record yourself
 • One tap in Settings deletes everything BuzzBee has ever stored about you
 • Nothing is ever sold, because nothing is ever collected
 
@@ -59,7 +59,7 @@ The field caps at 4,000 characters (line breaks count as one); this version is 3
 BuzzBee is a single-user app — no account, login, or server. Every feature is available right after install. No widgets: alarm alerts come from AlarmKit.
 
 NEW IN 1.0.1:
-• Clap & Buzz calibration (Settings → Sound & Haptics → Calibrate Clap / Calibrate Buzz): BuzzBee listens to the room for 2s, then to 3 claps or one long "bzzzz", and saves a loudness threshold so those missions hear the user, not room noise. Only that one number per mission is stored — no audio. Hold a row to reset it.
+• Clap & Buzz calibration (Settings → Calibrate → Calibrate Clap / Calibrate Buzz): BuzzBee listens to the room for 2s, then to 3 claps or one long "bzzzz", and saves a loudness threshold so those missions hear the user, not room noise. Only that one number per mission is stored — no audio. Hold a row to reset it.
 • A slept-through alarm now rings again (see below).
 • Fixed: an alarm could ring again after its mission was finished.
 
@@ -76,7 +76,7 @@ EXPECTED BEHAVIOR, NOT BUGS:
 
 MINIMUM OS: iOS 26.1+ (AlarmKit doesn't exist before iOS 26).
 
-MICROPHONE: Clap and Buzz missions, and their calibration, read only a live volume level — no audio is stored. "Record Your Own Alarm Sound" (Settings → Sound & Haptics) records up to 15s as an alarm tone, saved on-device only, never uploaded. With the app fully closed, the lock-screen alert plays a built-in tone (iOS allows only bundled sounds there).
+MICROPHONE: Clap and Buzz missions, and their calibration, analyse live sound on-device (loudness and pitch pattern) — no audio is stored, only a few numbers. "Record Your Own Alarm Sound" (Settings → Sound & Haptics) records up to 15s as an alarm tone, saved on-device only, never uploaded. With the app fully closed, the lock-screen alert plays a built-in tone (iOS allows only bundled sounds there).
 
 CALENDAR: "Calendar Auto-Shift" (on by default) reads only tomorrow's earliest timed event and suggests a wake-window shift if there's under 45 min before the deadline. It never edits the calendar. To test: add an event for tomorrow at/before an enabled alarm's deadline, then open the app between 1:00 PM and 11:59 PM (once per day — force-quit and relaunch if already opened since 1:00 PM). A "Shift your wake window?" notification appears within seconds.
 
@@ -89,7 +89,7 @@ PRIVACY: no account, server, analytics or tracking SDK. Nothing leaves the devic
 Videos: https://drive.google.com/drive/folders/1wEgA_JkiuvTpFZUxrdq3JIe7kU0nqE_c?usp=sharing
 1 — Fixed-time alarm, phone on Silent, app force-quit: still rings at full volume.
 2 — Wake Window alarm, app force-quit: starts quietly, builds to full volume by the deadline.
-3 — Buzz mission: the mic reads a volume level only; nothing is recorded.
+3 — Buzz mission: the mic analyses sound on-device; nothing is recorded.
 4 — A custom sound recorded in Airplane Mode: saved on-device only.
 5 — Calendar Auto-Shift: a conflicting event, app opened after 1:00 PM, notification appears.
 6 — Bedtime Reminder notification opens the breathing screen.

@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { HapticPressable as Pressable } from '@/components/haptic-pressable';
 import { SwipeToDismissSheet } from '@/components/swipe-to-dismiss-sheet';
 import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
-import { useMicMetering } from '@/hooks/use-mic-metering';
+import { MicFrames } from '@/components/mic-frames';
 import {
   BUZZ_RISE_DB,
   buzzThreshold,
@@ -14,25 +14,28 @@ import {
   clapThreshold,
   MicMission,
   roomLevel,
-  saveThreshold,
+  saveCalibration,
 } from '@/lib/mic-calibration';
 import { MissionIcon } from '@/lib/mission-meta';
+import { averageShape, Frame, matchTolerance } from '@/lib/sound-print';
 
 const QUIET_MS = 2000;
 const CLAP_TIMEOUT_MS = 10000;
 const CLAPS_WANTED = 3;
 const CLAP_DEBOUNCE_MS = 250;
 const BUZZ_WINDOW_MS = 4000;
-// ~1.1s of held buzz at the meter's 120ms poll rate.
-const BUZZ_MIN_SAMPLES = 9;
+// How long the buzz has to be heard in total (time, not frame count: frames
+// are ~64ms with sound matching, ~120ms on the loudness-only fallback).
+const BUZZ_MIN_MS = 1100;
 
 type Phase = 'intro' | 'quiet' | 'listen' | 'done' | 'failed';
 
 /**
  * One-time calibration for the Clap or Buzz mission (route param
  * mission=clap|buzz): measure the room while the user stays quiet, then
- * their clap or buzz, and store a threshold between the two. Only that one
- * number is saved — see lib/mic-calibration.ts.
+ * their clap or buzz. Saves a loudness threshold between the two, plus a
+ * fingerprint of the clap or buzz itself (16 numbers) so missions can ignore
+ * other loud sounds. Never any audio — see lib/mic-calibration.ts.
  */
 export default function CalibrateScreen() {
   const router = useRouter();
@@ -42,7 +45,12 @@ export default function CalibrateScreen() {
   const [phase, setPhase] = useState<Phase>('intro');
   const [clapsHeard, setClapsHeard] = useState(0);
   const [level, setLevel] = useState<number | null>(null);
-  const [result, setResult] = useState<{ threshold: number; riseDb: number } | null>(null);
+  const [result, setResult] = useState<{
+    threshold: number;
+    riseDb: number;
+    print: number[] | null;
+    tolerance: number;
+  } | null>(null);
   const [failReason, setFailReason] = useState('');
 
   // Mutable measurement state, read inside the sample callback and timers.
@@ -53,8 +61,13 @@ export default function CalibrateScreen() {
     peaks: [] as number[],
     inClap: false,
     peak: -160,
+    peakShape: null as number[] | null,
     lastClapAt: 0,
+    clapShapes: [] as number[][],
     buzz: [] as number[],
+    buzzShapes: [] as number[][],
+    buzzMs: 0,
+    lastFrameAt: 0,
     timers: [] as ReturnType<typeof setTimeout>[],
   });
 
@@ -83,19 +96,32 @@ export default function CalibrateScreen() {
       return;
     }
     const threshold = clapThreshold(room, peaks);
-    setResult({ threshold, riseDb: Math.round(Math.min(...peaks) - room) });
+    const shapes = m.current.clapShapes;
+    const print = shapes.length >= 2 ? averageShape(shapes) : null;
+    setResult({
+      threshold,
+      riseDb: Math.round(Math.min(...peaks) - room),
+      print,
+      tolerance: print ? matchTolerance(print, shapes) : 0.7,
+    });
     go('done');
   }
 
   function finishBuzz() {
     clearTimers();
-    const { room, buzz } = m.current;
-    if (buzz.length < BUZZ_MIN_SAMPLES) {
+    const { room, buzz, buzzMs, buzzShapes } = m.current;
+    if (buzzMs < BUZZ_MIN_MS || buzz.length === 0) {
       fail('We couldn’t hear a long enough buzz. Hold one steady “bzzzz” for 2 seconds.');
       return;
     }
     const threshold = buzzThreshold(room, buzz);
-    setResult({ threshold, riseDb: Math.round(Math.max(...buzz) - room) });
+    const print = buzzShapes.length >= 5 ? averageShape(buzzShapes) : null;
+    setResult({
+      threshold,
+      riseDb: Math.round(Math.max(...buzz) - room),
+      print,
+      tolerance: print ? matchTolerance(print, buzzShapes) : 0.7,
+    });
     go('done');
   }
 
@@ -104,6 +130,10 @@ export default function CalibrateScreen() {
     s.quiet = [];
     s.peaks = [];
     s.buzz = [];
+    s.clapShapes = [];
+    s.buzzShapes = [];
+    s.buzzMs = 0;
+    s.lastFrameAt = 0;
     s.inClap = false;
     s.lastClapAt = 0;
     setClapsHeard(0);
@@ -120,9 +150,11 @@ export default function CalibrateScreen() {
     );
   }
 
-  function onSample(db: number) {
+  function onFrame({ db, shape }: Frame, now: number) {
     setLevel(db);
     const s = m.current;
+    const dt = s.lastFrameAt ? Math.min(250, now - s.lastFrameAt) : 0;
+    s.lastFrameAt = now;
     if (s.phase === 'quiet') {
       s.quiet.push(db);
       return;
@@ -130,23 +162,31 @@ export default function CalibrateScreen() {
     if (s.phase !== 'listen') return;
 
     if (mission === 'buzz') {
-      if (db > s.room + BUZZ_RISE_DB) s.buzz.push(db);
+      if (db > s.room + BUZZ_RISE_DB) {
+        s.buzz.push(db);
+        s.buzzMs += dt;
+        if (shape) s.buzzShapes.push(shape);
+      }
       return;
     }
 
-    // Clap: a rise of CLAP_RISE_DB starts one; its peak is recorded once the
-    // level falls back near the room.
-    const now = Date.now();
+    // Clap: a rise of CLAP_RISE_DB starts one; its peak (and the shape of the
+    // loudest slice) is recorded once the level falls back near the room.
     if (!s.inClap && db > s.room + CLAP_RISE_DB && now - s.lastClapAt > CLAP_DEBOUNCE_MS) {
       s.inClap = true;
       s.peak = db;
+      s.peakShape = shape;
       s.lastClapAt = now;
       setClapsHeard((c) => c + 1);
     } else if (s.inClap) {
-      s.peak = Math.max(s.peak, db);
+      if (db > s.peak) {
+        s.peak = db;
+        s.peakShape = shape ?? s.peakShape;
+      }
       if (db < s.room + 6) {
         s.inClap = false;
         s.peaks.push(s.peak);
+        if (s.peakShape) s.clapShapes.push(s.peakShape);
         if (s.peaks.length >= CLAPS_WANTED) finishClap();
       }
     }
@@ -154,7 +194,7 @@ export default function CalibrateScreen() {
 
   async function save(tryIt: boolean) {
     if (!result) return;
-    await saveThreshold(mission, result.threshold);
+    await saveCalibration(mission, result.threshold, result.print, result.tolerance);
     // replace, not push: the mission preview needs the microphone, and this
     // screen must be gone (its recorder stopped) before that one starts.
     if (tryIt) router.replace({ pathname: '/ringing', params: { preview: '1', mission } });
@@ -180,7 +220,9 @@ export default function CalibrateScreen() {
     detail = mission === 'clap' ? `${clapsHeard} of ${CLAPS_WANTED} heard` : 'Keep one steady “bzzzz” for 2 seconds.';
   } else if (phase === 'done' && result) {
     headline = 'Got it!';
-    detail = `Your ${mission} is about ${result.riseDb} dB louder than your room. Missions will now listen for that.`;
+    detail = result.print
+      ? `Got your ${mission === 'clap' ? 'clap' : 'buzz'} — it’s about ${result.riseDb} dB louder than your room. Missions will now listen for that sound, and ignore other noise.`
+      : `Your ${mission} is about ${result.riseDb} dB louder than your room. Missions will now listen for that.`;
   } else if (phase === 'failed') {
     headline = 'Let’s try again';
     detail = failReason;
@@ -195,7 +237,7 @@ export default function CalibrateScreen() {
       <SwipeToDismissSheet onDismiss={() => router.back()} style={styles.sheet} disabled={measuring}>
         <SafeAreaView edges={['bottom']} style={styles.safeArea}>
           <View style={styles.handle} />
-          {measuring && <MicSampler onSample={onSample} onError={() => fail('BuzzBee needs microphone access to calibrate. You can allow it in the Settings app.')} />}
+          {measuring && <MicFrames onFrame={onFrame} onError={() => fail('BuzzBee needs microphone access to calibrate. You can allow it in the Settings app.')} />}
 
           <View style={styles.body}>
             <View style={styles.iconWrap}>
@@ -208,7 +250,7 @@ export default function CalibrateScreen() {
                 <View style={[styles.meterFill, { width: `${meterPct}%` }]} />
               </View>
             )}
-            <Text style={styles.privacy}>Only a volume level is measured. Nothing is recorded or saved except one number.</Text>
+            <Text style={styles.privacy}>Analysed on your phone and never recorded — only a few numbers describing your sound are saved.</Text>
           </View>
 
           <View style={styles.footer}>
@@ -236,24 +278,6 @@ export default function CalibrateScreen() {
       </SwipeToDismissSheet>
     </Pressable>
   );
-}
-
-/** Owns the microphone only while mounted, and forwards each level reading. */
-function MicSampler({ onSample, onError }: { onSample: (db: number) => void; onError: () => void }) {
-  const { metering, error } = useMicMetering();
-  const sampleRef = useRef(onSample);
-  const errorRef = useRef(onError);
-  useEffect(() => {
-    sampleRef.current = onSample;
-    errorRef.current = onError;
-  });
-  useEffect(() => {
-    if (metering !== null) sampleRef.current(metering);
-  }, [metering]);
-  useEffect(() => {
-    if (error) errorRef.current();
-  }, [error]);
-  return null;
 }
 
 const styles = StyleSheet.create({

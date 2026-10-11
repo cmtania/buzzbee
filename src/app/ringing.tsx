@@ -9,8 +9,9 @@ import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
 import { AlarmSoundLoop, AlarmVibration, DeviceVolumeBoost } from '@/components/alarm-ring-effects';
 import { Colors, Fonts, Radii, Spacing } from '@/constants/theme';
-import { useMicMetering } from '@/hooks/use-mic-metering';
-import { useMicThresholds } from '@/lib/mic-calibration';
+import { MicFrames } from '@/components/mic-frames';
+import { useMicProfile } from '@/lib/mic-calibration';
+import { Frame, similarity } from '@/lib/sound-print';
 import { AudioWaveform, Check, Delete, Eye, X } from 'lucide-react-native';
 import { confirmationDelaySec } from '@/lib/alarm-launch';
 import { armConfirmationAlarm, disarmConfirmationAlarm } from '@/lib/alarmkit';
@@ -551,91 +552,148 @@ function ShakeMission({ onComplete, onActivity }: { onComplete: () => void } & M
   );
 }
 
-function ClapMission({ onComplete, onActivity }: { onComplete: () => void } & MissionProps) {
-  const { metering, error } = useMicMetering();
-  const [count, setCount] = useState(0);
-  const remaining = CLAP_TARGET - count;
-  // The user's own calibrated level if they ran Calibrate Clap, else -20 dB.
-  const { clap: clapThresholdDb } = useMicThresholds();
-  const wasAbove = useRef(false);
-  const lastCountAt = useRef(0);
+// Sound matching (1.0.2): after Calibrate Clap/Buzz, the mission also
+// compares each sound's spectral shape with the user's saved fingerprint, so
+// a door, a cough or the TV doesn't count. Without a fingerprint — never
+// calibrated, calibrated before 1.0.2, or a build on the loudness-only
+// fallback — they count on loudness alone, exactly as before.
 
-  useEffect(() => {
-    if (metering === null) return;
+// "That didn't sound like…" is shown for this long after a rejected sound.
+const MISS_HINT_MS = 1200;
+
+function useMissHint(): [boolean, () => void] {
+  const [missed, setMissed] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+  function flag() {
+    setMissed(true);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setMissed(false), MISS_HINT_MS);
+  }
+  return [missed, flag];
+}
+
+function ClapMission({ onComplete, onActivity }: { onComplete: () => void } & MissionProps) {
+  const [error, setError] = useState(false);
+  const [count, setCount] = useState(0);
+  const [missed, flagMiss] = useMissHint();
+  const remaining = CLAP_TARGET - count;
+  const profile = useMicProfile('clap');
+  const det = useRef({ inClap: false, startedAt: 0, peakDb: -160, peakShape: null as number[] | null, lastCountAt: 0, count: 0 });
+
+  function accept() {
+    const d = det.current;
+    if (d.count >= CLAP_TARGET) return;
+    d.count += 1;
+    setCount(d.count);
+    onActivity();
+    if (d.count >= CLAP_TARGET) onComplete();
+  }
+
+  function onFrame({ db, shape }: Frame, now: number) {
     const DEBOUNCE_MS = 250;
-    const now = Date.now();
-    const isAbove = metering > clapThresholdDb;
-    if (isAbove && !wasAbove.current && now - lastCountAt.current > DEBOUNCE_MS) {
-      lastCountAt.current = now;
-      onActivity();
-      setCount((c) => {
-        const next = c + 1;
-        if (next >= CLAP_TARGET) onComplete();
-        return next;
-      });
+    // A clap is over in well under this; anything louder for longer is not a
+    // clap. Only enforced when matching, so the fallback behaves as before.
+    const MAX_CLAP_MS = 350;
+    const d = det.current;
+    const above = db > profile.thresholdDb;
+    if (!d.inClap) {
+      if (above && now - d.lastCountAt > DEBOUNCE_MS) {
+        d.inClap = true;
+        d.startedAt = now;
+        d.peakDb = db;
+        d.peakShape = shape;
+        if (!profile.print || !shape) {
+          // Loudness-only: count on the rising edge, as before.
+          d.lastCountAt = now;
+          accept();
+        }
+      }
+      return;
     }
-    wasAbove.current = isAbove;
-  }, [metering, onComplete, onActivity, clapThresholdDb]);
+    if (db > d.peakDb) {
+      d.peakDb = db;
+      d.peakShape = shape ?? d.peakShape;
+    }
+    if (above) return;
+    d.inClap = false;
+    if (!profile.print || !d.peakShape) return; // already counted on the edge
+    const short = now - d.startedAt <= MAX_CLAP_MS;
+    if (short && similarity(profile.print, d.peakShape) >= profile.tolerance) {
+      d.lastCountAt = now;
+      accept();
+    } else {
+      flagMiss();
+    }
+  }
 
   if (error) return <MicPermissionFallback mission="clap" onDismiss={onComplete} />;
 
   return (
     <View style={styles.centerWrap}>
+      <MicFrames onFrame={onFrame} onError={() => setError(true)} />
       <Counter count={count} target={CLAP_TARGET} />
       <ProgressBar progress={count / CLAP_TARGET} />
       <ClapBars count={count} />
-      <Text style={styles.hint}>Listening for claps — {remaining} to go!</Text>
+      <Text style={styles.hint}>
+        {missed ? 'That didn’t sound like your clap' : `Listening for claps — ${remaining} to go!`}
+      </Text>
     </View>
   );
 }
 
 function BuzzMission({ onComplete, onActivity }: { onComplete: () => void } & MissionProps) {
-  const { metering, error } = useMicMetering();
+  const [error, setError] = useState(false);
   const [count, setCount] = useState(0);
+  const [missed, flagMiss] = useMissHint();
   const remaining = BUZZ_TARGET - count;
-  // The user's own calibrated level if they ran Calibrate Buzz, else -25 dB.
-  const { buzz: buzzThresholdDb } = useMicThresholds();
-  const aboveSince = useRef<number | null>(null);
-  const cooldownUntil = useRef(0);
-  const countedThisBurst = useRef(false);
+  const profile = useMicProfile('buzz');
+  const det = useRef({ aboveSince: null as number | null, counted: false, cooldownUntil: 0, misses: 0, count: 0 });
 
-  useEffect(() => {
-    if (metering === null) return;
+  function onFrame({ db, shape }: Frame, now: number) {
     const MIN_SUSTAIN_MS = 700;
     const COOLDOWN_MS = 500;
-    const now = Date.now();
-    const isAbove = metering > buzzThresholdDb;
+    // A real buzz wobbles; tolerate a couple of off slices before resetting.
+    const MAX_MISSES = 2;
+    const d = det.current;
+    const loud = db > profile.thresholdDb;
+    const matches = !profile.print || !shape || similarity(profile.print, shape) >= profile.tolerance;
 
-    if (isAbove) {
-      if (aboveSince.current === null) aboveSince.current = now;
-      if (
-        !countedThisBurst.current &&
-        now - aboveSince.current >= MIN_SUSTAIN_MS &&
-        now >= cooldownUntil.current
-      ) {
-        countedThisBurst.current = true;
-        cooldownUntil.current = now + COOLDOWN_MS;
+    if (loud && matches) {
+      d.misses = 0;
+      if (d.aboveSince === null) d.aboveSince = now;
+      if (!d.counted && now - d.aboveSince >= MIN_SUSTAIN_MS && now >= d.cooldownUntil && d.count < BUZZ_TARGET) {
+        d.counted = true;
+        d.cooldownUntil = now + COOLDOWN_MS;
+        d.count += 1;
+        setCount(d.count);
         onActivity();
-        setCount((c) => {
-          const next = c + 1;
-          if (next >= BUZZ_TARGET) onComplete();
-          return next;
-        });
+        if (d.count >= BUZZ_TARGET) onComplete();
       }
-    } else {
-      aboveSince.current = null;
-      countedThisBurst.current = false;
+      return;
     }
-  }, [metering, onComplete, onActivity, buzzThresholdDb]);
+    if (loud && !matches && d.aboveSince !== null && ++d.misses <= MAX_MISSES) return;
+    if (loud && !matches && !d.counted) {
+      flagMiss();
+    }
+    d.aboveSince = null;
+    d.counted = false;
+    d.misses = 0;
+  }
 
   if (error) return <MicPermissionFallback mission="buzz" onDismiss={onComplete} />;
 
   return (
     <View style={styles.centerWrap}>
+      <MicFrames onFrame={onFrame} onError={() => setError(true)} />
       <Counter count={count} target={BUZZ_TARGET} />
       <ProgressBar progress={count / BUZZ_TARGET} />
       <BuzzArt />
-      <Text style={styles.hint}>Make a long "bzzzzz" — {remaining} to go!</Text>
+      <Text style={styles.hint}>
+        {missed ? 'That didn’t sound like your buzz' : `Make a long "bzzzzz" — ${remaining} to go!`}
+      </Text>
     </View>
   );
 }

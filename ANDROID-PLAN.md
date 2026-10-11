@@ -1,7 +1,9 @@
 # BuzzBee for Android — Build Plan
 
 **Status:** not started. Written 2026-09-23, before the iOS App Store
-release. Nothing in this file has been built or tested.
+release; updated 2026-10-06 for iOS 1.0.2 (Clap/Buzz sound matching and
+the Settings → Calibrate screen — see §5). Nothing in this file has been
+built or tested on Android.
 
 **How to use this file:** point a fresh session at it. It is meant to be
 read cold, without the iOS repo's history in context. It currently lives in
@@ -50,6 +52,16 @@ Copy these files nearly as-is:
 | `src/lib/ring-dedup.ts`, `src/lib/id.ts` | Small helpers, no imports |
 | `src/lib/db.ts` | Schema + CRUD. Only dependency is `expo-sqlite`, which is cross-platform |
 | `src/lib/history-data.ts`, `src/lib/settings-cache.ts` | Derived-data helpers |
+| `src/lib/sound-print.ts` | *(iOS 1.0.2)* Sound fingerprint: FFT → 16-band spectrum shape, cosine similarity, match tolerance. **No imports at all** — pure maths on a `Float32Array` |
+| `src/lib/mic-calibration.ts` | *(iOS 1.0.2)* Stores each mission's threshold + fingerprint + tolerance. Only dependency is AsyncStorage, which is cross-platform |
+
+### Ports with small changes *(verified, iOS 1.0.2)*
+
+| File | Change needed |
+|---|---|
+| `src/components/mic-frames.tsx` | Delivers mic frames for Clap/Buzz. Remove the `Platform.OS !== 'ios'` guard in `loadAudioApi()` and the iOS-only `setAudioSessionOptions` call. See §5 |
+| `src/app/calibrate.tsx` | The calibration flow (room 2s → 3 claps / one long buzz). Logic ports as-is; restyle its sheet for Material (§6) |
+| `src/app/calibrate-settings.tsx` | Settings → Calibrate sheet (two rows, hold to reset). Restyle only |
 
 `db.ts` is worth copying **including its migration pattern**: every column
 added after v1 needs both a line in `CREATE TABLE IF NOT EXISTS` (for fresh
@@ -197,13 +209,60 @@ tuned on real devices.
 - **Math, Tap** — pure JS, port as-is.
 - **Shake** — `expo-sensors` `Accelerometer`, cross-platform. Threshold
   `1.7` with a `0.7×` reset hysteresis and a 300ms debounce.
-- **Clap, Buzz** — mic metering via `src/hooks/use-mic-metering.ts`. Verify
-  that `expo-audio`'s metering behaves the same on Android; the dB
+- **Clap, Buzz** — since iOS 1.0.2 these use sound matching, not loudness
+  alone. See "Sound matching & calibration" below. The default dB
   thresholds (`-20` for clap, `-25` sustained 700ms for buzz) are
-  **iOS-calibrated and will likely need re-tuning**.
+  **iOS-calibrated and will likely need re-tuning**; calibration makes
+  this matter less, because each user's own levels replace them.
 - The Clap/Buzz "Start Mission" gate exists because their mic detection
   conflicts with the alarm sound. Keep that. Keep the 3-minute inactivity
   timeout that resumes ringing too.
+
+### Sound matching & calibration (iOS 1.0.2)
+
+What the iOS app does *(verified against the iOS source)*:
+
+- **Calibrate** (Settings → Calibrate → Clap / Buzz) listens to the room
+  for 2s, then to 3 claps or one long "bzzzz". It saves, per mission, a
+  loudness threshold between the room and the sound, a **fingerprint**
+  (16 numbers: the mean-removed log energy in 16 bands from 150 Hz to
+  7.5 kHz) and a **match tolerance** (the weakest calibration sample's
+  similarity minus 0.12, clamped to 0.5–0.85).
+- **Missions** count only when a sound is loud enough **and** its spectrum
+  shape's cosine similarity to the fingerprint is at or above the
+  tolerance. A clap must also be 350ms or shorter; a buzz must match for
+  700ms, tolerating two off frames. A rejected sound briefly shows "That
+  didn't sound like your clap/buzz".
+- **No fingerprint** (never calibrated) → loudness-only, the pre-1.0.2
+  behaviour. Same if the mic library fails to start: `mic-frames.tsx`
+  falls back to `expo-audio` metering and frames carry `shape: null`.
+- Raw mic audio comes from **react-native-audio-api** (Software Mansion):
+  `AudioRecorder.onAudioReady({ sampleRate: 16000, bufferLength: 1024,
+  channelCount: 1 })`, about 64ms per frame. Audio is analysed in memory
+  and discarded; only the numbers above are stored. The privacy policy
+  says exactly this — keep the Android behaviour identical, or update the
+  policy.
+
+Android notes:
+
+- The library ships an `android/` implementation *(verified)*, so the
+  same component should work once the iOS guard is removed. It has not
+  been run on Android.
+- Its Expo config plugin, by default, adds `FOREGROUND_SERVICE` +
+  `FOREGROUND_SERVICE_MEDIA_PLAYBACK` and registers its own
+  `CentralizedForegroundService` (type `mediaPlayback`). It does **not**
+  add `RECORD_AUDIO` *(verified: plugin defaults in
+  `lib/commonjs/plugin/withAudioAPI.js`)*. Add `RECORD_AUDIO` yourself
+  and decide whether the library's service clashes with the alarm's own
+  foreground service from §3 — it may be cleaner to pass
+  `androidForegroundService: false`. Using the mic from a foreground
+  service on API 34+ also needs the `microphone` service type *(platform
+  knowledge)*.
+- `disableFFmpeg: true` is set in the iOS app's plugin options; keep it,
+  since nothing decodes files through the library.
+- Re-check the tolerance and the 350ms / 700ms timings on real Android
+  hardware. Phone mics and their noise suppression differ by maker, which
+  changes the spectrum shape.
 
 Android bonus worth considering: Android *does* expose an ambient light
 sensor to third-party apps, which iOS does not. `PLAN.md` (iOS) notes
@@ -246,8 +305,9 @@ Practical notes:
    math; it's pure and cheap to cover.
 2. **Core loop** — alarm list, create/edit, one mission (Tap), ringing
    screen, dismiss.
-3. **All six missions** — re-tune Clap/Buzz thresholds on real Android
-   hardware.
+3. **All six missions** — including sound matching and the Calibrate
+   screen (§5). Re-tune Clap/Buzz thresholds and the match tolerance on
+   real Android hardware, from more than one maker.
 4. **Sounds** — the eight bundled tones, one notification channel each.
    Decide on custom recordings (§3).
 5. **Smart features** — Wake Window escalation, Bedtime Reminder, Calendar
@@ -273,6 +333,10 @@ Practical notes:
    makes this meaningfully more work than on iOS.
 5. **Feature parity or Android-first rethink?** — e.g. the light sensor,
    or Android's richer widget/tile surfaces.
+6. **Sound matching in v1?** — recommended yes, since calibration and
+   matching are mostly pure TypeScript. The risk is the mic library on
+   Android and its foreground service (§5); if that fights the alarm
+   service, ship loudness-only first. The fallback is already built in.
 
 ---
 
@@ -287,6 +351,8 @@ Practical notes:
   same-day re-save guard, which is subtle and worth copying.
 - `src/app/ringing.tsx` — mission logic, thresholds, the inactivity
   timeout, and the anti-cheat confirmation alarm.
+- `src/lib/sound-print.ts`, `src/components/mic-frames.tsx`,
+  `src/app/calibrate.tsx` — sound matching and calibration (iOS 1.0.2).
 - `app-store/TEST-PLAN.md` — the manual test pass. Most of it is
   platform-agnostic and can be adapted directly for Play Store release
   testing.

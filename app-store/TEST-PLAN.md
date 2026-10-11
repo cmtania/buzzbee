@@ -152,7 +152,7 @@ actually dismisses on completion:
 
 ## 4c. Clap & Buzz calibration
 
-- [ ] Settings → Sound & Haptics → Calibrate Clap: Start, stay quiet for 2s,
+- [ ] Settings → Calibrate → Calibrate Clap: Start, stay quiet for 2s,
       clap 3 times — the counter reaches 3 and shows "Got it!". Save.
       The row now reads "Calibrated to you".
 - [ ] Calibrate Buzz the same way with one long "bzzzz".
@@ -163,6 +163,27 @@ actually dismisses on completion:
 - [ ] Settings → Reset Data also clears both calibrations.
 - [ ] A real ringing Clap/Buzz alarm uses the calibrated level (try one with
       soft claps that only count after calibrating).
+
+**Sound matching (1.0.2).** Calibrate both first.
+
+- [ ] Clap mission: your normal claps count. Knocking on a table, a door
+      slam, a loud "hey!" or a shout do **not** count — the hint briefly shows
+      "That didn’t sound like your clap".
+- [ ] Buzz mission: your "bzzzz" counts. A held "aaaah", whistling, a hair
+      dryer or music do **not** count ("That didn’t sound like your buzz").
+- [ ] Someone else's clap/buzz in the same room: note whether it counts
+      (expected: usually yes for claps; a very different voice may not).
+- [ ] Clap/buzz from 1 m and from across the room — still counts (if not,
+      note the distance; the tolerance may need tuning).
+- [ ] Reset a calibration → that mission counts on loudness alone again
+      (any loud sound counts, as in 1.0.1).
+- [ ] A phone that calibrated on 1.0.1 (no fingerprint): missions behave
+      exactly as 1.0.1 until recalibrated.
+- [ ] While the alarm sound is still ringing/vibrating, the mic still hears
+      claps and buzzes, and starting the mission doesn't stop the vibration
+      or the volume lock.
+- [ ] Two Clap/Buzz alarms back to back (finish one, let the next ring) —
+      the mic starts again on the second.
 
 ## 5. Record Your Own Alarm Sound
 

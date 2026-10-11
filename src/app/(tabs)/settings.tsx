@@ -16,6 +16,7 @@ import { cancelAlarmNotification } from "@/lib/scheduling";
 import { AppSettings } from "@/lib/types";
 import { rescheduleWindDownNotification } from "@/lib/wind-down-scheduling";
 import {
+  AudioWaveform,
   BedDouble,
   Bell,
   Calendar,
@@ -132,16 +133,23 @@ export default function SettingsScreen() {
             <Text style={styles.sectionLabel}>General</Text>
             <GlassCard style={styles.group}>
               <Row
-                icon={<Bell size={18.5} color={Colors.accentDeep} />}
-                title="Notifications"
+                icon={<AudioWaveform size={18.5} color={Colors.accentDeep} />}
+                title="Calibrate"
                 divider={false}
-                onPress={() => router.push("/notifications-settings")}
+                sub="Teach the Clap & Buzz missions your own sound"
+                onPress={() => router.push("/calibrate-settings")}
                 right={<ChevronRight size={17.5} color={Colors.inkFaint} />}
               />
               <Row
                 icon={<Volume2 size={18.5} color={Colors.accentDeep} />}
                 title="Sound & Haptics"
                 onPress={() => router.push("/sound-haptics-settings")}
+                right={<ChevronRight size={17.5} color={Colors.inkFaint} />}
+              />
+              <Row
+                icon={<Bell size={18.5} color={Colors.accentDeep} />}
+                title="Notifications"
+                onPress={() => router.push("/notifications-settings")}
                 right={<ChevronRight size={17.5} color={Colors.inkFaint} />}
               />
               <Row

@@ -91,7 +91,8 @@
             "./assets/sounds/notif/vintage_telephone.wav"
           ]
         }
-      ]
+      ],
+      ["react-native-audio-api", { "disableFFmpeg": true }]
     ],
     "experiments": {
       "typedRoutes": true,

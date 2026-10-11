@@ -7,10 +7,13 @@
 // noisy room. Calibration measures this user's own room and their own clap
 // and buzz once, and stores a threshold between the two.
 //
-// Privacy: only the resulting threshold numbers (dB) are stored. No audio is
-// kept — the mic is read exactly as the missions read it, as a live volume
-// level (see use-mic-metering.ts), so the "the microphone only reads a volume
-// level" promise in the privacy policy and review notes stays true.
+// Since 1.0.2 it also saves a sound fingerprint of the user's own clap or
+// buzz (16 numbers, see lib/sound-print.ts), so the missions can ignore loud
+// sounds that aren't a clap or a buzz.
+//
+// Privacy: only numbers are stored — a loudness threshold, the 16-number
+// fingerprint and a match tolerance per mission. Audio is analysed in memory
+// and discarded; nothing is recorded or uploaded.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 
@@ -27,7 +30,12 @@ const FLOOR_DB = -70;
 
 const STORAGE_KEY = 'mic-calibration';
 
-type Stored = Partial<Record<MicMission, { thresholdDb: number; calibratedAt: string }>>;
+type Entry = { thresholdDb: number; calibratedAt: string; print?: number[]; tolerance?: number };
+type Stored = Partial<Record<MicMission, Entry>>;
+
+/** What a mission listens for. `print` is null when uncalibrated (or calibrated
+ * before 1.0.2): the mission then matches on loudness alone. */
+export type MicProfile = { thresholdDb: number; print: number[] | null; tolerance: number };
 
 async function readStored(): Promise<Stored> {
   try {
@@ -38,22 +46,23 @@ async function readStored(): Promise<Stored> {
   }
 }
 
-export async function getThresholds(): Promise<Record<MicMission, number>> {
-  const stored = await readStored();
-  return {
-    clap: stored.clap?.thresholdDb ?? DEFAULT_THRESHOLDS.clap,
-    buzz: stored.buzz?.thresholdDb ?? DEFAULT_THRESHOLDS.buzz,
-  };
-}
-
 export async function isCalibrated(): Promise<Record<MicMission, boolean>> {
   const stored = await readStored();
   return { clap: !!stored.clap, buzz: !!stored.buzz };
 }
 
-export async function saveThreshold(mission: MicMission, thresholdDb: number): Promise<void> {
+export async function saveCalibration(
+  mission: MicMission,
+  thresholdDb: number,
+  print: number[] | null,
+  tolerance: number
+): Promise<void> {
   const stored = await readStored();
-  stored[mission] = { thresholdDb, calibratedAt: new Date().toISOString() };
+  stored[mission] = {
+    thresholdDb,
+    calibratedAt: new Date().toISOString(),
+    ...(print ? { print, tolerance } : {}),
+  };
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stored)).catch(() => {});
 }
 
@@ -67,19 +76,32 @@ export async function resetCalibration(mission?: MicMission): Promise<void> {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stored)).catch(() => {});
 }
 
-/** Thresholds for the missions: defaults immediately, the user's own once loaded. */
-export function useMicThresholds(): Record<MicMission, number> {
-  const [thresholds, setThresholds] = useState(DEFAULT_THRESHOLDS);
+async function getProfile(mission: MicMission): Promise<MicProfile> {
+  const e = (await readStored())[mission];
+  return {
+    thresholdDb: e?.thresholdDb ?? DEFAULT_THRESHOLDS[mission],
+    print: e?.print ?? null,
+    tolerance: e?.tolerance ?? 0.7,
+  };
+}
+
+/** A mission's profile: loudness defaults immediately, the user's own once loaded. */
+export function useMicProfile(mission: MicMission): MicProfile {
+  const [profile, setProfile] = useState<MicProfile>({
+    thresholdDb: DEFAULT_THRESHOLDS[mission],
+    print: null,
+    tolerance: 0.7,
+  });
   useEffect(() => {
     let cancelled = false;
-    getThresholds().then((t) => {
-      if (!cancelled) setThresholds(t);
+    getProfile(mission).then((p) => {
+      if (!cancelled) setProfile(p);
     });
     return () => {
       cancelled = true;
     };
-  }, []);
-  return thresholds;
+  }, [mission]);
+  return profile;
 }
 
 // ---- measurement maths (pure, so they're easy to reason about) -------------

@@ -63,7 +63,7 @@ instantly.
    deadline) — the same escalation shown in the in-app status pill's countdown.
 6. Dismiss the mission to stop it.
 
-## Segment 3: mic-based missions only read a volume level
+## Segment 3: mic-based missions never record audio
 
 1. Let an alarm ring with the **Clap** or **Buzzzzz** mission selected.
 2. Perform the claps / buzzing sound on camera, show the counter incrementing,
@@ -127,7 +127,7 @@ Attached: screen recordings proving BuzzBee's core claims.
 
 2 — A Wake Window alarm is set and BuzzBee is force-quit the same way. It starts ringing quietly when the window opens and builds to full volume by the hard deadline.
 
-3 — The Buzz mission dismisses a ringing alarm by listening for a sustained "bzzzz" sound. The microphone only reads a live volume level; no audio is recorded or stored.
+3 — The Buzz mission dismisses a ringing alarm by listening for a sustained "bzzzz" sound. The microphone sound is analysed live on the phone; no audio is recorded or stored.
 
 4 — A custom alarm sound is recorded (Settings → Sound & Haptics → Record a New Sound) with Airplane Mode on the whole time. With no network available, this shows the recording is saved only on the device and never uploaded.
 
